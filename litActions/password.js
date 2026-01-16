@@ -1,5 +1,16 @@
 const go = async () => {
   try {
+    Lit.Actions.setResponse({
+      response: JSON.stringify({
+        ok: false,
+        error: "missing_params",
+        message:
+          "username, password, registryAddress, ciphertext, and dataToEncryptHash are required",
+      }),
+    });
+
+    return true;
+
     const {
       username,
       password,

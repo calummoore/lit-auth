@@ -38,12 +38,14 @@ function App() {
   );
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [encryptUsername, setEncryptUsername] = useState("");
   const [message, setMessage] = useState("");
   const [ciphertext, setCiphertext] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [ephemeralAccount] = useState(() =>
     privateKeyToAccount(generatePrivateKey())
   );
+  const [lastUsername, setLastUsername] = useState("");
   const registryAddress = PASSWORD_REGISTRY_ADDRESS;
   const [storedEntries, setStoredEntries] = useState<
     {
@@ -83,6 +85,11 @@ function App() {
       } catch {
         // ignore parse errors
       }
+    }
+    const savedUser = localStorage.getItem("lit-password-last-user");
+    if (savedUser) {
+      setLastUsername(savedUser);
+      setEncryptUsername(savedUser);
     }
   }, []);
 
@@ -178,6 +185,11 @@ function App() {
         account: walletAddress as `0x${string}`,
         chain: polygon,
       });
+      localStorage.setItem("lit-password-last-user", username);
+      setLastUsername(username);
+      setEncryptUsername(username);
+      setUsername("");
+      setPassword("");
       setError(null);
       console.log("Saved password hash tx:", txHash);
     } catch (err) {
@@ -189,11 +201,24 @@ function App() {
     }
   };
 
+  const updateEncryptUsername = (value: string) => {
+    setEncryptUsername(value);
+    localStorage.setItem("lit-password-last-user", value);
+    setLastUsername(value);
+  };
+
   const encryptMessage = async () => {
     if (!litClientRef.current) {
       setError("Connect to Lit first");
       return;
     }
+    const selectedUser = encryptUsername || lastUsername;
+    if (!selectedUser) {
+      setError("Provide a username to tag this encryption");
+      return;
+    }
+    localStorage.setItem("lit-password-last-user", selectedUser);
+    setLastUsername(selectedUser);
     setProcessing(true);
     try {
       const res = await litClientRef.current.encrypt({
@@ -202,9 +227,9 @@ function App() {
       });
 
       setCiphertext(res.ciphertext);
-      if (username && res.ciphertext && res.dataToEncryptHash) {
+      if (selectedUser && res.ciphertext && res.dataToEncryptHash) {
         persistEntry({
-          username,
+          username: selectedUser,
           ciphertext: res.ciphertext,
           dataToEncryptHash: res.dataToEncryptHash,
           createdAt: new Date().toISOString(),
@@ -433,7 +458,7 @@ function App() {
 
       <section className="grid">
         <article className="card highlight">
-          <h2>Registry</h2>
+          <h2>Create User</h2>
           <div className="field-row">
             <label>Registry address</label>
             <div className="value monospace">
@@ -470,6 +495,14 @@ function App() {
 
         <article className="card">
           <h2>Encrypt</h2>
+          <div className="field-row">
+            <label>Username</label>
+            <input
+              value={encryptUsername}
+              onChange={(e) => updateEncryptUsername(e.target.value)}
+              placeholder="alice"
+            />
+          </div>
           <div className="field-row">
             <label>Message</label>
             <textarea
