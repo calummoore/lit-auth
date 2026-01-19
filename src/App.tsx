@@ -11,6 +11,7 @@ import {
   passwordRegistryAbi,
 } from "./contracts/passwordRegistry";
 import "./App.css";
+import type { ShorthandResources } from "@lit-protocol/auth/src/lib/authenticators/types";
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error";
 
@@ -96,13 +97,34 @@ function App() {
   useEffect(() => {
     // Build UACC that gates on the password action Lit Action
     if (!passwordActionCid) return;
-    const builder = createAccBuilder()
-      .requireLitAction(passwordActionCid, "verified", [], "true", "=")
-      .and()
-      .requireEthBalance("0", ">=")
-      .on("polygon");
+    
+    // this condition says:
+    // if the current action running matches passwordActionCid, then the lit action can decrypt the data.  
+    // ":currentActionIpfsId" is a special parameter that the nodes will replace with the actual ipfs id of the current action running, and cannot be tampered with.
+    const uacc = [{
+      conditionType: "evmBasic",
+      contractAddress: '',
+      standardContractType: '',
+      chain: 'ethereum',
+      method: '',
+      parameters: [':currentActionIpfsId'],
+      returnValueTest: {
+        comparator: '=',
+        value: passwordActionCid,
+      },
+    }];
 
-    setUacc(builder.build());
+    setUacc(uacc);
+    
+    // it doesn't seem like the Acc Builder supports this feature of using
+    // ":currentActionIpfsId" to dynamically check the current action running so we manually define it above.
+    // const builder = createAccBuilder()
+    //   .requireLitAction(passwordActionCid, "verified", [], "true", "=")
+    //   .and()
+    //   .requireEthBalance("0", ">=")
+    //   .on("polygon");
+
+    // setUacc(builder.build());
   }, [passwordActionCid]);
 
   const persistEntry = (entry: {
@@ -265,30 +287,9 @@ function App() {
     try {
       const litClient = litClientRef.current;
       const expiration = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-      const resources = [
-        {
-          resource: {
-            resourcePrefix: "lit-accesscontrolcondition" as const,
-            resource: "*",
-            toString: () => "lit-accesscontrolcondition://*",
-            getResourceKey: () => "lit-accesscontrolcondition://*",
-            isValidLitAbility: (ability: string) =>
-              ability === "access-control-condition-decryption" ||
-              ability === "access-control-condition-signing",
-          },
-          ability: "access-control-condition-decryption" as const,
-        },
-        {
-          resource: {
-            resourcePrefix: "lit-litaction" as const,
-            resource: passwordActionCid,
-            toString: () => `lit-litaction://${passwordActionCid}`,
-            getResourceKey: () => `lit-litaction://${passwordActionCid}`,
-            isValidLitAbility: (ability: string) =>
-              ability === "lit-action-execution",
-          },
-          ability: "lit-action-execution" as const,
-        },
+      const resources: ShorthandResources = [
+        ["access-control-condition-decryption", "*"],
+        ["lit-action-execution", "*"],
       ];
 
       const authContext = await authManagerRef.current.createEoaAuthContext({

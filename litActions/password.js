@@ -1,16 +1,5 @@
 const go = async () => {
   try {
-    Lit.Actions.setResponse({
-      response: JSON.stringify({
-        ok: false,
-        error: "missing_params",
-        message:
-          "username, password, registryAddress, ciphertext, and dataToEncryptHash are required",
-      }),
-    });
-
-    return true;
-
     const {
       username,
       password,
@@ -64,7 +53,7 @@ const go = async () => {
       "0x" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 
     // Fetch the on-chain hash from the PasswordRegistry
-    const provider = new ethers.JsonRpcProvider(
+    const provider = new ethers.providers.JsonRpcProvider(
       rpcUrl || (await Lit.Actions.getRpcUrl({ chain }))
     );
     const abi = [
@@ -92,10 +81,7 @@ const go = async () => {
       ciphertext,
       dataToEncryptHash,
       chain,
-      accessControlConditions: [],
-      evmContractConditions: [],
-      solRpcConditions: [],
-      unifiedAccessControlConditions,
+      accessControlConditions: unifiedAccessControlConditions,
     });
 
     Lit.Actions.setResponse({
@@ -119,3 +105,5 @@ const go = async () => {
 
   return false;
 };
+
+go();
