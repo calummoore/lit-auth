@@ -1,91 +1,131 @@
+const setResponse = (payload) => {
+  Lit.Actions.setResponse({ response: JSON.stringify(payload) });
+};
+
+const throwErr = (code, message, data) => {
+  const err = new Error(message);
+  err.code = code;
+  err.data = data;
+  throw err;
+};
+
+const requireParam = (obj, key) => {
+  if (!obj || obj[key] === undefined || obj[key] === null || obj[key] === "") {
+    throwErr("validation-error", `Missing required ${key}`);
+  }
+  return obj[key];
+};
+
+const cleanCid = (cid) => {
+  const raw = (cid || "").toString();
+  return raw.startsWith("ipfs://") ? raw.slice("ipfs://".length) : raw;
+};
+
 const go = async () => {
   try {
-    // Validate required parameters
+    // Get required inputs from jsParams
+    const guardianRegistryAddress = requireParam(
+      jsParams,
+      "guardianRegistryAddress"
+    );
+    const userAddress = requireParam(jsParams, "userAddress");
+    const ciphertext = requireParam(jsParams, "ciphertext");
+    const dataToEncryptHash = requireParam(jsParams, "dataToEncryptHash");
+    const guardians = requireParam(jsParams, "guardians");
+    const unifiedAccessControlConditions = requireParam(
+      jsParams,
+      "unifiedAccessControlConditions"
+    );
+
+    // Fetch guardian configuration from chain
+    const provider = new ethers.providers.JsonRpcProvider(
+      await Lit.Actions.getRpcUrl({ chain: "polygon" })
+    );
+    const abi = [
+      "function getGuardianConfig(address user) view returns (uint256 threshold, bytes32[] guardianCIDs)",
+      "function getGuardianEntry(address user, bytes32 guardianCIDHash) view returns (bytes32)",
+    ];
+    const registry = new ethers.Contract(
+      guardianRegistryAddress,
+      abi,
+      provider
+    );
+    const rawConfig = await registry.getGuardianConfig(userAddress);
+    const threshold = Number(rawConfig.threshold ?? rawConfig[0] ?? 0);
+    const guardianCIDHashes = rawConfig.guardianCIDs ?? rawConfig[1] ?? [];
+    const guardianCIDs = guardians.map((entry) => entry?.cid).filter(Boolean);
+
     if (
-      !walletConfig ||
-      !walletConfig.guardianCIDs ||
-      !walletConfig.threshold
+      !Array.isArray(guardianCIDHashes) ||
+      guardianCIDHashes.length === 0 ||
+      guardianCIDs.length === 0
     ) {
-      Lit.Actions.setResponse({
-        response: JSON.stringify({
-          ok: false,
-          error: "validation_error",
-          message: "Missing required walletConfig parameters",
-          authenticated: 0,
-          required: 0,
-        }),
-      });
-      return;
-    }
-
-    if (!ciphertext || !dataToEncryptHash) {
-      Lit.Actions.setResponse({
-        response: JSON.stringify({
-          ok: false,
-          error: "validation_error",
-          message: "Missing ciphertext or dataToEncryptHash",
-          authenticated: 0,
-          required: walletConfig.threshold,
-        }),
-      });
-      return;
-    }
-
-    // Extract guardian configuration
-    const { guardianCIDs, threshold } = walletConfig;
-
-    if (!Array.isArray(guardianCIDs) || guardianCIDs.length === 0) {
-      Lit.Actions.setResponse({
-        response: JSON.stringify({
-          ok: false,
-          error: "validation_error",
-          message: "No guardian CIDs provided",
-          authenticated: 0,
-          required: threshold,
-        }),
-      });
-      return;
+      throwErr("validation-error", "No guardian CIDs provided");
     }
 
     // Initialize guardian validation counter
     let authed = 0;
+    const configuredCIDHashesForAddress = new Set(
+      guardianCIDHashes.map((hash) => (hash || "").toString().toLowerCase())
+    );
 
     // Validate each guardian
-    for (const guardianCID of guardianCIDs) {
+    for (const guardianEntry of guardians) {
       try {
-        // Process IPFS CID format (remove ipfs:// prefix if present)
-        let cleanCID = (guardianCID || "").toString();
-        if (cleanCID.startsWith("ipfs://")) {
-          cleanCID = cleanCID.slice("ipfs://".length);
-        }
+        const cleanCID = cleanCid(guardianEntry?.cid);
 
         if (!cleanCID) {
           continue; // Skip invalid CIDs
         }
 
+        const guardianHash = ethers.utils.keccak256(
+          ethers.utils.toUtf8Bytes(cleanCID)
+        );
+        if (!configuredCIDHashesForAddress.has(guardianHash.toLowerCase())) {
+          continue;
+        }
+
+        let authValueHash;
+        try {
+          authValueHash = await registry.getGuardianEntry(
+            userAddress,
+            guardianHash
+          );
+        } catch {
+          continue;
+        }
+
         // Call guardian Lit Action
         const guardianResponse = await Lit.Actions.call({
           ipfsId: cleanCID,
-          jsParams: childParams || {},
+          params: {
+            // Data for the specific guardian auth
+            ...(guardianEntry?.data || {}),
+            authValueHash,
+          },
         });
 
         // Parse guardian response
         let parsed;
         try {
-          parsed = JSON.parse(guardianResponse.response);
+          parsed = JSON.parse(guardianResponse || "");
         } catch (parseError) {
           // Guardian response is not valid JSON, treat as failure
           continue;
         }
 
-        // Check if guardian authenticated successfully
-        if (parsed && parsed.ok === true) {
-          authed++;
+        // Propogate errors
+        if (parsed.ok !== true) {
+          setResponse(parsed);
+          return;
+        }
 
-          // Early termination optimization - if we have enough guardians, break
-          if (authed >= threshold) {
-            break;
-          }
+        // Increment successfully verified auths
+        authed++;
+
+        // Early termination optimization - if we have enough guardians, break
+        if (authed >= threshold) {
+          break;
         }
       } catch (guardianError) {
         // Guardian call failed, continue to next guardian
@@ -96,55 +136,42 @@ const go = async () => {
 
     // Check if threshold is met
     if (authed < threshold) {
-      Lit.Actions.setResponse({
-        response: JSON.stringify({
-          ok: false,
-          error: "insufficient_guardians",
-          authenticated: authed,
-          required: threshold,
-        }),
+      throwErr("insufficient-guardians", "Guardian threshold not met", {
+        authenticated: authed,
+        required: threshold,
       });
-      return;
     }
 
     // Threshold met - proceed with decryption
     try {
       const decryptedData = await Lit.Actions.decryptAndCombine({
-        accessControlConditions: [],
-        ciphertext: ciphertext,
-        dataToEncryptHash: dataToEncryptHash,
-        chain: "ethereum",
+        unifiedAccessControlConditions: unifiedAccessControlConditions || [],
+        ciphertext,
+        dataToEncryptHash,
+        chain: "polygon",
       });
 
       // Return successful response
-      Lit.Actions.setResponse({
-        response: JSON.stringify({
-          ok: true,
-          result: decryptedData,
-        }),
+      setResponse({
+        ok: true,
+        action: "child",
+        result: decryptedData,
       });
     } catch (decryptionError) {
       // Decryption failed
-      Lit.Actions.setResponse({
-        response: JSON.stringify({
-          ok: false,
-          error: "decryption_failed",
-          message: decryptionError.message || "Decryption operation failed",
-          authenticated: authed,
-          required: threshold,
-        }),
-      });
+      throwErr(
+        "decryption-failed",
+        decryptionError.message || "Decryption operation failed"
+      );
     }
   } catch (error) {
     // General execution error
-    Lit.Actions.setResponse({
-      response: JSON.stringify({
-        ok: false,
-        error: "validation_error",
-        message: error.message || "Child action execution failed",
-        authenticated: 0,
-        required: 0,
-      }),
+    setResponse({
+      ok: false,
+      action: "child",
+      error: error.code ?? "unknown",
+      message: error.message || "Child action execution failed",
+      data: error.data,
     });
   }
 };

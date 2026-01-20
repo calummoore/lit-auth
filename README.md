@@ -1,9 +1,10 @@
-# Lit Password-Gated Encryption (Vite + Lit Protocol + Polygon)
+# Lit Guardian-Gated Recovery (Vite + Lit Protocol + Polygon)
 
-Password-gated Lit Actions demo:
-- Store a password hash on-chain (Polygon) in a `PasswordRegistry` contract.
-- Encrypt text with Lit on Naga Dev.
-- Decrypt via a Lit Action that checks the on-chain hash before returning plaintext.
+Guardian-gated recovery demo:
+- Store guardian recovery config on-chain (Polygon) in a `GuardianRegistry` contract.
+- Store the child Lit Action CID on-chain (Polygon) in a `LitActionRegistry` contract.
+- Encrypt a recovery private key with Lit on Naga Dev.
+- Decrypt via a parent Lit Action that delegates to a child action and a guardian action.
 
 ## Prerequisites
 - Node 18+
@@ -19,25 +20,39 @@ Copy `.env.example` to `.env` and fill:
 - `PRIVATE_KEY` – deployer wallet for Polygon
 - `POLYGON_RPC_URL` – Polygon mainnet RPC (e.g., Alchemy/Infura/public)
 - `POLYGONSCAN_API_KEY` – optional, for verification
-- `VITE_PASSWORD_REGISTRY_ADDRESS` – set after you deploy the registry
+- `VITE_GUARDIAN_REGISTRY_ADDRESS` – set after you deploy the guardian registry
+- `VITE_LIT_ACTION_REGISTRY_ADDRESS` – set after you deploy the Lit Action registry
 - `VITE_PASSWORD_ACTION_CID` – set automatically if you run `npm run pinata:upload-all` (or fill manually)
+- `VITE_CHILD_ACTION_CID` – optional fallback for the child Lit Action CID
+- `VITE_PARENT_ACTION_CID` – parent Lit Action CID
+- `VITE_POLYGON_RPC_URL` – Polygon RPC for client writes and LitAction registry reads
 
 ## Contracts (Polygon)
-- Source: `contracts/PasswordRegistry.sol`
+- Source: `contracts/GuardianRegistry.sol`
 - Deploy script: `scripts/deploy.ts`
 
 Compile and deploy:
 ```bash
 npm run compile:contracts
-npm run deploy:polygon
+npm run deploy:guardian-registry
 ```
-Copy the printed contract address into `VITE_PASSWORD_REGISTRY_ADDRESS`.
+Copy the printed contract address into `VITE_GUARDIAN_REGISTRY_ADDRESS`.
+
+## Lit Action Registry (Polygon)
+- Source: `contracts/LitActionRegistry.sol`
+- Deploy script: `scripts/deploy-lit-action-registry.ts`
+
+Compile and deploy:
+```bash
+npm run compile:contracts
+npm run deploy:lit-action-registry
+```
+Copy the printed contract address into `VITE_LIT_ACTION_REGISTRY_ADDRESS`.
 
 ## Lit Actions
-- `litActions/password.js` – verifies password hash on-chain and decrypts.
-- `litActions/parent-lit-action.js` / `child-lit-action.js` – optional orchestration helpers.
-
-The app currently inlines the password action code when calling `executeJs`. If you prefer IPFS, upload the action and swap the inline code for the CID.
+- `litActions/password.js` – verifies guardian password hash on-chain.
+- `litActions/child-lit-action.js` – validates guardians and decrypts.
+- `litActions/parent-lit-action.js` – fetches config and delegates to the child action.
 
 Use Pinata helper to upload all actions and auto-write CIDs:
 ```bash
@@ -47,7 +62,7 @@ npm run pinata:upload-all
 # and litActions/cids.json
 ```
 
-The frontend builds a Unified ACC using the password action CID and uses that for encrypt/decrypt.
+The frontend builds a Unified ACC using the child action CID and uses that for encrypt/decrypt.
 
 ## Frontend workflow (Naga Dev)
 Run the app:
@@ -55,10 +70,9 @@ Run the app:
 npm run dev
 ```
 In the UI:
-1) Connect to Lit (Naga Dev) and connect your wallet (Polygon).  
-2) Enter username/password, click “Save hash to registry” (writes password hash to Polygon).  
-3) Enter text and click “Encrypt with Lit.”  
-4) Click “Decrypt with password” – Lit Action verifies the password hash on-chain, then returns plaintext.
+1) Connect to Lit (Naga Dev).  
+2) Enter a guardian password and click “Create recovery key” (encrypts a new private key + stores guardian config on Polygon).  
+3) Click “Decrypt” for a saved key – parent action fetches the child CID, child verifies the guardian, and returns the decrypted key.
 
 ## Build
 ```bash

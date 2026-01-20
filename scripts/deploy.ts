@@ -3,6 +3,7 @@ import hre from 'hardhat'
 async function main() {
   const gasPriceGwei = process.env.POLYGON_GAS_PRICE_GWEI
   const gasLimit = process.env.POLYGON_GAS_LIMIT
+  const nonce = process.env.POLYGON_NONCE
 
   const overrides: Record<string, any> = {}
   if (gasPriceGwei) {
@@ -11,17 +12,18 @@ async function main() {
   if (gasLimit) {
     overrides.gasLimit = BigInt(gasLimit)
   }
+  if (nonce) {
+    overrides.nonce = Number(nonce)
+  }
 
-  console.log('Deploying PasswordRegistry...', {
+  console.log('Deploying GuardianRegistry...', {
     network: hre.network.name,
     gasPriceGwei: gasPriceGwei ?? 'auto',
     gasLimit: gasLimit ?? 'auto',
+    nonce: nonce ?? 'auto',
   })
 
-  const registry = await hre.ethers.deployContract(
-    'PasswordRegistry',
-    overrides
-  )
+  const registry = await hre.ethers.deployContract('GuardianRegistry', overrides)
 
   const tx = registry.deploymentTransaction()
   console.log('Deployment tx:', tx?.hash)
@@ -29,7 +31,7 @@ async function main() {
   await registry.waitForDeployment()
 
   const address = await registry.getAddress()
-  console.log(`PasswordRegistry deployed to: ${address}`)
+  console.log(`GuardianRegistry deployed to: ${address}`)
 }
 
 main().catch((error) => {

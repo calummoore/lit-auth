@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "hardhat": "hardhat",
     "compile:contracts": "hardhat compile",
-    "deploy:polygon": "hardhat run scripts/deploy.ts --network polygon",
+    "deploy:guardian-registry": "hardhat run scripts/deploy.ts --network polygon",
+    "deploy:lit-action-registry": "hardhat run scripts/deploy-lit-action-registry.ts --network polygon",
     "pinata:upload": "node scripts/pinata-upload.cjs",
     "pinata:upload-all": "node scripts/pinata-upload-all.cjs"
   },

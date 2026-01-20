@@ -1,45 +1,29 @@
+const setResponse = (payload) => {
+  Lit.Actions.setResponse({ response: JSON.stringify(payload) });
+};
+
 const go = async () => {
   try {
-    const {
-      username,
-      password,
-      registryAddress,
-      ciphertext,
-      dataToEncryptHash,
-      chain = "polygon",
-      rpcUrl,
-      hashAlgorithm = "SHA-256",
-      unifiedAccessControlConditions = [],
-    } = jsParams || {};
+    const input = typeof jsParams !== "undefined" && jsParams ? jsParams : {};
+    const { authValueHash, password, hashAlgorithm = "SHA-256" } = input || {};
 
-    if (
-      !username ||
-      !password ||
-      !registryAddress ||
-      !ciphertext ||
-      !dataToEncryptHash
-    ) {
-      Lit.Actions.setResponse({
-        response: JSON.stringify({
-          ok: false,
-          error: "missing_params",
-          message:
-            "username, password, registryAddress, ciphertext, and dataToEncryptHash are required",
-        }),
+    if (!password || !authValueHash) {
+      setResponse({
+        ok: false,
+        error: "missing_params",
+        message: "password and authValueHash are required",
       });
       return false;
     }
 
     const supportedAlgorithms = ["SHA-256", "SHA-1", "SHA-512"];
     if (!supportedAlgorithms.includes(hashAlgorithm)) {
-      Lit.Actions.setResponse({
-        response: JSON.stringify({
-          ok: false,
-          error: "invalid_algorithm",
-          message: `Unsupported algorithm: ${hashAlgorithm}. Supported: ${supportedAlgorithms.join(
-            ", "
-          )}`,
-        }),
+      setResponse({
+        ok: false,
+        error: "invalid_algorithm",
+        message: `Unsupported algorithm: ${hashAlgorithm}. Supported: ${supportedAlgorithms.join(
+          ", "
+        )}`,
       });
       return false;
     }
@@ -52,54 +36,30 @@ const go = async () => {
     const computedHash =
       "0x" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 
-    // Fetch the on-chain hash from the PasswordRegistry
-    const provider = new ethers.providers.JsonRpcProvider(
-      rpcUrl || (await Lit.Actions.getRpcUrl({ chain }))
-    );
-    const abi = [
-      "function getPasswordHash(string username) view returns (bytes32)",
-    ];
-    const registry = new ethers.Contract(registryAddress, abi, provider);
-    const storedHash = await registry.getPasswordHash(username);
-
     if (
-      !storedHash ||
-      storedHash.toLowerCase() !== computedHash.toLowerCase()
+      !authValueHash ||
+      authValueHash.toLowerCase() !== computedHash.toLowerCase()
     ) {
-      Lit.Actions.setResponse({
-        response: JSON.stringify({
-          ok: false,
-          verified: false,
-          error: "invalid_password",
-        }),
+      setResponse({
+        ok: false,
+        verified: false,
+        error: "invalid_password",
+        message: "Password did not match stored hash",
       });
       return false;
     }
 
-    // Decrypt using the same access control conditions that were used to encrypt
-    const plaintext = await Lit.Actions.decryptAndCombine({
-      ciphertext,
-      dataToEncryptHash,
-      chain,
-      accessControlConditions: unifiedAccessControlConditions,
-    });
-
-    Lit.Actions.setResponse({
-      response: JSON.stringify({
-        ok: true,
-        verified: true,
-        plaintext,
-      }),
+    setResponse({
+      ok: true,
+      verified: true,
     });
 
     return true;
   } catch (error) {
-    Lit.Actions.setResponse({
-      response: JSON.stringify({
-        ok: false,
-        error: "execution_failed",
-        message: error?.message || "Password verification failed",
-      }),
+    setResponse({
+      ok: false,
+      error: "execution_failed",
+      message: error?.message || "Password verification failed",
     });
   }
 

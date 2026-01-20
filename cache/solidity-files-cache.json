@@ -36,6 +36,78 @@
       "artifacts": [
         "PasswordRegistry"
       ]
+    },
+    "/Users/calummoore/projects/polybase/dev/lit-auth-2/contracts/GuardianRegistry.sol": {
+      "lastModificationDate": 1768913236150,
+      "contentHash": "4a42fdb8b89f9dd1d1a21fe316a2786a",
+      "sourceName": "contracts/GuardianRegistry.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "GuardianRegistry"
+      ]
+    },
+    "/Users/calummoore/projects/polybase/dev/lit-auth-2/contracts/LitActionRegistry.sol": {
+      "lastModificationDate": 1768911058873,
+      "contentHash": "cb390a33af363fd87a028d7335393346",
+      "sourceName": "contracts/LitActionRegistry.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "LitActionRegistry"
+      ]
     }
   }
 }

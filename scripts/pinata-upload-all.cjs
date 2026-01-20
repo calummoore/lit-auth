@@ -71,7 +71,10 @@ async function main() {
   const cidMap = {}
   for (const { filePath, cid } of results) {
     if (filePath.includes('password')) cidMap.VITE_PASSWORD_ACTION_CID = cid
-    if (filePath.includes('child')) cidMap.VITE_CHILD_ACTION_CID = cid
+    if (filePath.includes('child')) {
+      cidMap.VITE_CHILD_ACTION_CID = cid
+      cidMap.INITIAL_CHILD_LIT_ACTION_CID = cid
+    }
     if (filePath.includes('parent')) cidMap.VITE_PARENT_ACTION_CID = cid
   }
 

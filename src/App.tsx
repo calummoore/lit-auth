@@ -1,15 +1,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type LitClientType } from "@lit-protocol/lit-client";
 import { createAuthManager, storagePlugins } from "@lit-protocol/auth";
-import { createAccBuilder } from "@lit-protocol/access-control-conditions";
-import { custom, createWalletClient } from "viem";
+import {
+  createPublicClient,
+  createWalletClient,
+  hexToSignature,
+  http,
+  keccak256,
+  toBytes,
+  custom,
+} from "viem";
 import { privateKeyToAccount, generatePrivateKey } from "viem/accounts";
 import { polygon } from "viem/chains";
 import { getLitClient, litNetworkName } from "./litClient";
 import {
-  PASSWORD_REGISTRY_ADDRESS,
-  passwordRegistryAbi,
-} from "./contracts/passwordRegistry";
+  GUARDIAN_REGISTRY_ADDRESS,
+  guardianRegistryAbi,
+} from "./contracts/guardianRegistry";
+import {
+  LIT_ACTION_REGISTRY_ADDRESS,
+  litActionRegistryAbi,
+} from "./contracts/litActionRegistry";
 import "./App.css";
 import type { ShorthandResources } from "@lit-protocol/auth/src/lib/authenticators/types";
 
@@ -29,6 +40,16 @@ function App() {
     .replace("ipfs://", "")
     .replace("lit-litaction://", "")
     .trim();
+  const parentActionCidRaw = import.meta.env.VITE_PARENT_ACTION_CID || "";
+  const parentActionCid = parentActionCidRaw
+    .replace("ipfs://", "")
+    .replace("lit-litaction://", "")
+    .trim();
+  const fallbackChildActionCidRaw = import.meta.env.VITE_CHILD_ACTION_CID || "";
+  const fallbackChildActionCid = fallbackChildActionCidRaw
+    .replace("ipfs://", "")
+    .replace("lit-litaction://", "")
+    .trim();
   const litClientRef = useRef<LitClientType | null>(null);
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("idle");
@@ -37,33 +58,30 @@ function App() {
   const walletClientRef = useRef<ReturnType<typeof createWalletClient> | null>(
     null
   );
-  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [encryptUsername, setEncryptUsername] = useState("");
-  const [message, setMessage] = useState("");
   const [ciphertext, setCiphertext] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [ephemeralAccount] = useState(() =>
     privateKeyToAccount(generatePrivateKey())
   );
-  const [lastUsername, setLastUsername] = useState("");
-  const registryAddress = PASSWORD_REGISTRY_ADDRESS;
+  const [recoverAddress, setRecoverAddress] = useState("");
+  const [childActionCid, setChildActionCid] = useState("");
+  const [guardianThreshold, setGuardianThreshold] = useState<number | null>(null);
+  const [guardianHashes, setGuardianHashes] = useState<string[]>([]);
+  const [recoverPassword, setRecoverPassword] = useState("");
+  const [recoverPasswordVerified, setRecoverPasswordVerified] = useState(false);
+  const guardianRegistryAddress = GUARDIAN_REGISTRY_ADDRESS;
+  const litActionRegistryAddress = LIT_ACTION_REGISTRY_ADDRESS;
+  const guardianRpcUrl = import.meta.env.VITE_POLYGON_RPC_URL || "";
   const [storedEntries, setStoredEntries] = useState<
     {
-      username: string;
+      address: string;
       ciphertext: string;
       dataToEncryptHash: string;
       createdAt: string;
     }[]
   >([]);
   const [decryptedMap, setDecryptedMap] = useState<Record<string, string>>({});
-  const [modalEntry, setModalEntry] = useState<{
-    username: string;
-    ciphertext: string;
-    dataToEncryptHash: string;
-    createdAt: string;
-  } | null>(null);
-  const [modalPassword, setModalPassword] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const [uacc, setUacc] = useState<any>(null);
   const authManagerRef = useRef(
@@ -76,7 +94,7 @@ function App() {
   );
 
   useEffect(() => {
-    const raw = localStorage.getItem("lit-password-entries");
+    const raw = localStorage.getItem("lit-guardian-entries");
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
@@ -87,55 +105,130 @@ function App() {
         // ignore parse errors
       }
     }
-    const savedUser = localStorage.getItem("lit-password-last-user");
-    if (savedUser) {
-      setLastUsername(savedUser);
-      setEncryptUsername(savedUser);
+    const savedAddress = localStorage.getItem("lit-guardian-last-address");
+    if (savedAddress) {
+      setRecoverAddress(savedAddress);
     }
   }, []);
 
   useEffect(() => {
-    // Build UACC that gates on the password action Lit Action
-    if (!passwordActionCid) return;
-    
+    if (!recoverAddress) {
+      setRecoverPassword("");
+      setRecoverPasswordVerified(false);
+      return;
+    }
+    const storedPassword = localStorage.getItem(
+      `lit-guardian-auth-password:${recoverAddress.toLowerCase()}`
+    );
+    if (storedPassword) {
+      setRecoverPassword(storedPassword);
+      setRecoverPasswordVerified(true);
+    } else {
+      setRecoverPassword("");
+      setRecoverPasswordVerified(false);
+    }
+  }, [recoverAddress]);
+
+  useEffect(() => {
+    const fetchChildCid = async () => {
+      if (!litActionRegistryAddress || !guardianRpcUrl) {
+        setChildActionCid(fallbackChildActionCid);
+        return;
+      }
+      try {
+        const publicClient = createPublicClient({
+          chain: polygon,
+          transport: http(guardianRpcUrl),
+        });
+        const cid = await publicClient.readContract({
+          address: litActionRegistryAddress as `0x${string}`,
+          abi: litActionRegistryAbi,
+          functionName: "getChildIPFSCID",
+        });
+        setChildActionCid(
+          (cid || "")
+            .toString()
+            .replace("ipfs://", "")
+            .replace("lit-litaction://", "")
+            .trim()
+        );
+      } catch (err) {
+        console.warn("Failed to fetch child action CID", err);
+        setChildActionCid(fallbackChildActionCid);
+      }
+    };
+
+    void fetchChildCid();
+  }, [fallbackChildActionCid, litActionRegistryAddress, guardianRpcUrl]);
+
+  const fetchGuardianConfig = async (address: string | null) => {
+    if (!address || !guardianRegistryAddress || !guardianRpcUrl) {
+      setGuardianThreshold(null);
+      setGuardianHashes([]);
+      return;
+    }
+    try {
+      const publicClient = createPublicClient({
+        chain: polygon,
+        transport: http(guardianRpcUrl),
+      });
+      const res = await publicClient.readContract({
+        address: guardianRegistryAddress as `0x${string}`,
+        abi: guardianRegistryAbi,
+        functionName: "getGuardianConfig",
+        args: [address as `0x${string}`],
+      });
+      const threshold = Number((res as any).threshold ?? res[0] ?? 0);
+      const guardians = ((res as any).guardianCIDs ?? res[1] ?? []) as `0x${string}`[];
+      setGuardianThreshold(Number.isFinite(threshold) ? threshold : null);
+      setGuardianHashes(guardians.map((g) => g.toLowerCase()));
+    } catch (err) {
+      console.warn("Failed to fetch guardian config", err);
+      setGuardianThreshold(null);
+      setGuardianHashes([]);
+    }
+  };
+
+  useEffect(() => {
+    void fetchGuardianConfig(recoverAddress);
+  }, [recoverAddress, guardianRegistryAddress, guardianRpcUrl]);
+
+  useEffect(() => {
+    // Build UACC that gates on the child Lit Action
+    if (!childActionCid) return;
+
     // this condition says:
-    // if the current action running matches passwordActionCid, then the lit action can decrypt the data.  
+    // if the current action running matches childActionCid, then the lit action can decrypt the data.
     // ":currentActionIpfsId" is a special parameter that the nodes will replace with the actual ipfs id of the current action running, and cannot be tampered with.
-    const uacc = [{
-      conditionType: "evmBasic",
-      contractAddress: '',
-      standardContractType: '',
-      chain: 'ethereum',
-      method: '',
-      parameters: [':currentActionIpfsId'],
-      returnValueTest: {
-        comparator: '=',
-        value: passwordActionCid,
+    const uacc = [
+      {
+        conditionType: "evmBasic",
+        contractAddress: "",
+        standardContractType: "",
+        chain: "polygon",
+        method: "",
+        parameters: [":currentActionIpfsId"],
+        returnValueTest: {
+          comparator: "=",
+          value: childActionCid,
+        },
       },
-    }];
+    ];
 
     setUacc(uacc);
-    
-    // it doesn't seem like the Acc Builder supports this feature of using
-    // ":currentActionIpfsId" to dynamically check the current action running so we manually define it above.
-    // const builder = createAccBuilder()
-    //   .requireLitAction(passwordActionCid, "verified", [], "true", "=")
-    //   .and()
-    //   .requireEthBalance("0", ">=")
-    //   .on("polygon");
 
-    // setUacc(builder.build());
-  }, [passwordActionCid]);
+    // Acc builder doesn't support ":currentActionIpfsId" yet, so we manually define it.
+  }, [childActionCid]);
 
   const persistEntry = (entry: {
-    username: string;
+    address: string;
     ciphertext: string;
     dataToEncryptHash: string;
     createdAt: string;
   }) => {
     setStoredEntries((prev) => {
       const next = [entry, ...prev];
-      localStorage.setItem("lit-password-entries", JSON.stringify(next));
+      localStorage.setItem("lit-guardian-entries", JSON.stringify(next));
       return next;
     });
   };
@@ -157,18 +250,6 @@ function App() {
     }
   };
 
-  const disconnect = () => {
-    litClientRef.current?.disconnect();
-    litClientRef.current = null;
-    setConnectionState("idle");
-  };
-
-  useEffect(() => {
-    // Auto-attempt Lit connection on page load
-    void connect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const connectWallet = async () => {
     const ethereum = (window as any).ethereum;
     if (!ethereum) {
@@ -187,100 +268,169 @@ function App() {
     });
   };
 
-  const savePasswordOnChain = async () => {
-    if (!walletClientRef.current || !walletAddress) {
-      setError("Connect your wallet first");
-      return;
-    }
-    if (!registryAddress) {
-      setError("Set VITE_PASSWORD_REGISTRY_ADDRESS in your .env");
-      return;
-    }
-    setProcessing(true);
-    try {
-      const passwordHash = await hashPassword(password, "SHA-256");
-      const txHash = await walletClientRef.current.writeContract({
-        address: registryAddress as `0x${string}`,
-        abi: passwordRegistryAbi,
-        functionName: "setPasswordHash",
-        args: [username, passwordHash as `0x${string}`],
-        account: walletAddress as `0x${string}`,
-        chain: polygon,
-      });
-      localStorage.setItem("lit-password-last-user", username);
-      setLastUsername(username);
-      setEncryptUsername(username);
-      setUsername("");
-      setPassword("");
-      setError(null);
-      console.log("Saved password hash tx:", txHash);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to store password hash"
-      );
-    } finally {
-      setProcessing(false);
-    }
+  const disconnect = () => {
+    litClientRef.current?.disconnect();
+    litClientRef.current = null;
+    setConnectionState("idle");
   };
 
-  const updateEncryptUsername = (value: string) => {
-    setEncryptUsername(value);
-    localStorage.setItem("lit-password-last-user", value);
-    setLastUsername(value);
-  };
+  useEffect(() => {
+    // Auto-attempt Lit connection on page load
+    void connect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  const encryptMessage = async () => {
+  const createUser = async () => {
     if (!litClientRef.current) {
       setError("Connect to Lit first");
       return;
     }
-    const selectedUser = encryptUsername || lastUsername;
-    if (!selectedUser) {
-      setError("Provide a username to tag this encryption");
+    if (!guardianRegistryAddress) {
+      setError("Set VITE_GUARDIAN_REGISTRY_ADDRESS in your .env");
       return;
     }
-    localStorage.setItem("lit-password-last-user", selectedUser);
-    setLastUsername(selectedUser);
+    if (!guardianRpcUrl) {
+      setError("Set VITE_POLYGON_RPC_URL in your .env");
+      return;
+    }
+    if (!passwordActionCid) {
+      setError("Set VITE_PASSWORD_ACTION_CID in your .env");
+      return;
+    }
+    if (!childActionCid) {
+      setError("Set VITE_CHILD_ACTION_CID or configure LitActionRegistry");
+      return;
+    }
+    if (!walletClientRef.current || !walletAddress) {
+      setError("Connect your wallet first");
+      return;
+    }
+    if (!uacc) {
+      setError("Access control conditions not ready yet");
+      return;
+    }
+    if (!password) {
+      setError("Enter a guardian password");
+      return;
+    }
     setProcessing(true);
     try {
+      const privateKey = generatePrivateKey();
+      const account = privateKeyToAccount(privateKey);
+      const address = account.address;
+
       const res = await litClientRef.current.encrypt({
-        dataToEncrypt: message,
+        dataToEncrypt: privateKey,
         unifiedAccessControlConditions: uacc,
       });
 
       setCiphertext(res.ciphertext);
-      if (selectedUser && res.ciphertext && res.dataToEncryptHash) {
+      if (res.ciphertext && res.dataToEncryptHash) {
         persistEntry({
-          username: selectedUser,
+          address,
           ciphertext: res.ciphertext,
           dataToEncryptHash: res.dataToEncryptHash,
           createdAt: new Date().toISOString(),
         });
       }
+
+      const authValueHash = await hashPassword(password, "SHA-256");
+      const guardianCIDHash = keccak256(toBytes(passwordActionCid));
+      const publicClient = createPublicClient({
+        chain: polygon,
+        transport: http(guardianRpcUrl),
+      });
+      const nonce = await publicClient.readContract({
+        address: guardianRegistryAddress as `0x${string}`,
+        abi: guardianRegistryAbi,
+        functionName: "nonces",
+        args: [address as `0x${string}`],
+      });
+      const gasPrice = (await publicClient.getGasPrice()) * 2n;
+      const deadline = Math.floor(Date.now() / 1000) + 10 * 60;
+      const signature = await account.signTypedData({
+        domain: {
+          name: "GuardianRegistry",
+          version: "1",
+          chainId: polygon.id,
+          verifyingContract: guardianRegistryAddress as `0x${string}`,
+        },
+        types: {
+          AddGuardian: [
+            { name: "user", type: "address" },
+            { name: "guardianCIDHash", type: "bytes32" },
+            { name: "authValueHash", type: "bytes32" },
+            { name: "nonce", type: "uint256" },
+            { name: "deadline", type: "uint256" },
+          ],
+        },
+        primaryType: "AddGuardian",
+        message: {
+          user: address as `0x${string}`,
+          guardianCIDHash,
+          authValueHash: authValueHash as `0x${string}`,
+          nonce,
+          deadline,
+        },
+      });
+      const { v, r, s } = hexToSignature(signature);
+      const txHash = await walletClientRef.current.writeContract({
+        address: guardianRegistryAddress as `0x${string}`,
+        abi: guardianRegistryAbi,
+        functionName: "addGuardianWithSig",
+        args: [
+          address as `0x${string}`,
+          guardianCIDHash,
+          authValueHash as `0x${string}`,
+          nonce,
+          deadline,
+          v,
+          r,
+          s,
+        ],
+        account: walletAddress as `0x${string}`,
+        chain: polygon,
+        gasPrice,
+      });
+
+      localStorage.setItem("lit-guardian-last-address", address);
+      setRecoverAddress(address);
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
+      await fetchGuardianConfig(address);
+      setPassword("");
       setError(null);
+      console.log("Guardian registered tx:", txHash);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Encrypt failed");
+      setError(err instanceof Error ? err.message : "Failed to create user");
     } finally {
       setProcessing(false);
     }
   };
 
-  const runPasswordLitAction = async (
+  const runRecoveryLitAction = async (
     entry: {
-      username: string;
+      address: string;
       ciphertext: string;
       dataToEncryptHash: string;
     },
     providedPassword: string
   ) => {
-    if (!passwordActionCid) {
+    if (!parentActionCid) {
       setError(
-        "Set VITE_PASSWORD_ACTION_CID to the IPFS CID of password.js before decrypting."
+        "Set VITE_PARENT_ACTION_CID to the IPFS CID of parent-lit-action.js before decrypting."
       );
       return false;
     }
     if (!litClientRef.current) {
       setError("Connect to Lit first");
+      return false;
+    }
+    if (!guardianRegistryAddress || !litActionRegistryAddress) {
+      setError("Set registry addresses in your .env");
+      return false;
+    }
+    if (!providedPassword || !recoverPasswordVerified) {
+      setError("Verify your password first");
       return false;
     }
     setProcessing(true);
@@ -305,26 +455,24 @@ function App() {
         litClient,
       });
 
-      console.log("jsParams", {
-        username: entry.username,
-        password: providedPassword,
-        registryAddress,
-        ciphertext: entry.ciphertext,
-        dataToEncryptHash: entry.dataToEncryptHash,
-        chain: "polygon",
-        unifiedAccessControlConditions: uacc,
-      });
-
       const response = await litClient.executeJs({
-        ipfsId: passwordActionCid,
+        ipfsId: parentActionCid,
         authContext,
         jsParams: {
-          username: entry.username,
-          password: providedPassword,
-          registryAddress,
+          guardianRegistryAddress,
+          litActionRegistryAddress,
+          userAddress: entry.address,
+          guardians: [
+            {
+              cid: passwordActionCid,
+              data: {
+                password: providedPassword,
+                hashAlgorithm: "SHA-256",
+              },
+            },
+          ],
           ciphertext: entry.ciphertext,
           dataToEncryptHash: entry.dataToEncryptHash,
-          chain: "polygon",
           unifiedAccessControlConditions: uacc,
         },
       });
@@ -339,13 +487,13 @@ function App() {
       }
 
       if (!parsed?.ok) {
-        setError(parsed?.error ?? "Password verification failed");
+        setError(formatLitError(parsed, "Recovery failed"));
         return false;
       }
 
       setDecryptedMap((prev) => ({
         ...prev,
-        [entry.dataToEncryptHash]: parsed.plaintext ?? "",
+        [entry.dataToEncryptHash]: parsed.result ?? "",
       }));
       setError(null);
       return true;
@@ -357,27 +505,20 @@ function App() {
     }
   };
 
-  const openDecryptModal = (entry: {
-    username: string;
-    ciphertext: string;
-    dataToEncryptHash: string;
-    createdAt: string;
-  }) => {
-    setModalEntry(entry);
-    setModalPassword("");
-    setError(null);
-  };
-
-  const closeDecryptModal = () => {
-    setModalEntry(null);
-    setModalPassword("");
-  };
-
   const clearLocalData = () => {
-    localStorage.removeItem("lit-password-entries");
+    localStorage.removeItem("lit-guardian-entries");
+    localStorage.removeItem("lit-guardian-last-address");
+    if (recoverAddress) {
+      localStorage.removeItem(
+        `lit-guardian-auth-password:${recoverAddress.toLowerCase()}`
+      );
+    }
     setStoredEntries([]);
     setDecryptedMap({});
     setCiphertext(null);
+    setRecoverAddress("");
+    setRecoverPassword("");
+    setRecoverPasswordVerified(false);
     setError(null);
     setMenuOpen(false);
   };
@@ -387,35 +528,180 @@ function App() {
     return `${ciphertext.slice(0, 32)}...`;
   }, [ciphertext]);
 
+  const selectedEntry = useMemo(() => {
+    if (!recoverAddress) return null;
+    const normalized = recoverAddress.toLowerCase();
+    return (
+      storedEntries.find(
+        (entry) => entry.address.toLowerCase() === normalized
+      ) || null
+    );
+  }, [recoverAddress, storedEntries]);
+
+  const passwordGuardianHash = useMemo(() => {
+    if (!passwordActionCid) return "";
+    return keccak256(toBytes(passwordActionCid)).toLowerCase();
+  }, [passwordActionCid]);
+
+  const requiresPassword = useMemo(() => {
+    if (!guardianHashes.length || !passwordGuardianHash) return false;
+    return guardianHashes.includes(passwordGuardianHash);
+  }, [guardianHashes, passwordGuardianHash]);
+
+  const authedCount = useMemo(() => {
+    if (!requiresPassword) return 0;
+    return recoverPasswordVerified ? 1 : 0;
+  }, [requiresPassword, recoverPasswordVerified]);
+
+  const thresholdMet = useMemo(() => {
+    if (guardianThreshold === null) return false;
+    return authedCount >= guardianThreshold;
+  }, [authedCount, guardianThreshold]);
+
+  const authCountLabel = useMemo(() => {
+    if (guardianThreshold === null) return "—";
+    return `${authedCount}/${guardianThreshold} verified`;
+  }, [authedCount, guardianThreshold]);
+
+  const formatLitError = (parsed: any, fallback: string) => {
+    const code = parsed?.error ?? fallback;
+    const message = parsed?.message ? `: ${parsed.message}` : "";
+    const action = parsed?.action ? ` (${parsed.action})` : "";
+    return `${code}${message}${action}`;
+  };
+
+  const verifyPasswordAuth = async () => {
+    if (!recoverAddress) {
+      setError("Enter a recovery address first");
+      return;
+    }
+    if (!recoverPassword) {
+      setError("Enter a password to verify");
+      return;
+    }
+    if (!passwordActionCid) {
+      setError("Set VITE_PASSWORD_ACTION_CID in your .env");
+      return;
+    }
+    if (!guardianRegistryAddress || !guardianRpcUrl) {
+      setError("Set guardian registry address and RPC URL");
+      return;
+    }
+    if (!litClientRef.current) {
+      setError("Connect to Lit first");
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const publicClient = createPublicClient({
+        chain: polygon,
+        transport: http(guardianRpcUrl),
+      });
+      const authValueHash = await publicClient.readContract({
+        address: guardianRegistryAddress as `0x${string}`,
+        abi: guardianRegistryAbi,
+        functionName: "getGuardianEntry",
+        args: [recoverAddress as `0x${string}`, passwordGuardianHash as `0x${string}`],
+      });
+
+      const litClient = litClientRef.current;
+      const expiration = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      const resources: ShorthandResources = [
+        ["lit-action-execution", "*"],
+      ];
+      const authContext = await authManagerRef.current.createEoaAuthContext({
+        config: {
+          account: ephemeralAccount,
+        },
+        authConfig: {
+          domain: window.location.host,
+          statement: "Verify guardian password",
+          expiration,
+          resources,
+        },
+        litClient,
+      });
+
+      const response = await litClient.executeJs({
+        ipfsId: passwordActionCid,
+        authContext,
+        jsParams: {
+          password: recoverPassword,
+          authValueHash,
+          hashAlgorithm: "SHA-256",
+        },
+      });
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(response.response as string);
+      } catch {
+        parsed = null;
+      }
+
+      if (!parsed?.ok) {
+        setError(formatLitError(parsed, "Password verification failed"));
+        setRecoverPasswordVerified(false);
+        return;
+      }
+
+      localStorage.setItem(
+        `lit-guardian-auth-password:${recoverAddress.toLowerCase()}`,
+        recoverPassword
+      );
+      setRecoverPasswordVerified(true);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Password verification failed");
+      setRecoverPasswordVerified(false);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const guardianSummaries = useMemo(() => {
+    if (!guardianHashes.length) return [];
+    const passwordHash =
+      passwordActionCid ? keccak256(toBytes(passwordActionCid)).toLowerCase() : "";
+    return guardianHashes.map((hash) => {
+      if (passwordHash && hash === passwordHash) {
+        return "Password";
+      }
+      return `Unknown (${hash.slice(0, 10)}…)`;
+    });
+  }, [guardianHashes, passwordActionCid]);
+
   return (
     <div className="page">
       <header className="hero">
         <div>
           <p className="eyebrow">Lit Protocol • NagaDev</p>
           <h1>
-            Password-gated Lit Actions{" "}
-            <span className="brand-accent">+ Polygon PasswordRegistry</span>
+            Guardian-gated recovery{" "}
+            <span className="brand-accent">+ Lit Actions</span>
           </h1>
           <p className="lede">
-            Store a password hash on-chain, encrypt data with Lit, and decrypt
-            via a Lit Action that verifies the password hash in the registry.
+            Generate a recovery key, encrypt it with Lit, and require guardian
+            approval (password guardian initially) to decrypt it.
           </p>
           <div className="actions">
             <button
               className="primary"
-              onClick={connect}
+              onClick={() => {
+                if (litClientRef.current) {
+                  disconnect();
+                } else {
+                  void connect();
+                }
+              }}
               disabled={connectionState === "connecting"}
             >
               {connectionState === "connecting"
                 ? "Connecting…"
-                : `Connect to ${litNetworkName}`}
-            </button>
-            <button
-              className="ghost"
-              onClick={disconnect}
-              disabled={!litClientRef.current}
-            >
-              Disconnect
+                : litClientRef.current
+                  ? `Disconnect from ${litNetworkName}`
+                  : `Connect to ${litNetworkName}`}
             </button>
             <button
               className="ghost"
@@ -453,6 +739,7 @@ function App() {
                 : "No wallet connected"}
             </span>
           </div>
+          
           {error ? <p className="error-text">Error: {error}</p> : null}
         </div>
       </header>
@@ -461,21 +748,20 @@ function App() {
         <article className="card highlight">
           <h2>Create User</h2>
           <div className="field-row">
-            <label>Registry address</label>
+            <label>Guardian registry</label>
             <div className="value monospace">
-              {registryAddress || "Set VITE_PASSWORD_REGISTRY_ADDRESS"}
+              {guardianRegistryAddress || "Set VITE_GUARDIAN_REGISTRY_ADDRESS"}
             </div>
           </div>
           <div className="field-row">
-            <label>Username</label>
-            <input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="alice"
-            />
+            <label>Lit action registry</label>
+            <div className="value monospace">
+              {litActionRegistryAddress ||
+                "Set VITE_LIT_ACTION_REGISTRY_ADDRESS"}
+            </div>
           </div>
           <div className="field-row">
-            <label>Password</label>
+            <label>Guardian password</label>
             <input
               type="password"
               value={password}
@@ -486,170 +772,123 @@ function App() {
           <div className="actions">
             <button
               className="primary"
-              onClick={savePasswordOnChain}
+              onClick={createUser}
               disabled={processing}
             >
-              Save hash to registry
-            </button>
-          </div>
-        </article>
-
-        <article className="card">
-          <h2>Encrypt</h2>
-          <div className="field-row">
-            <label>Username</label>
-            <input
-              value={encryptUsername}
-              onChange={(e) => updateEncryptUsername(e.target.value)}
-              placeholder="alice"
-            />
-          </div>
-          <div className="field-row">
-            <label>Message</label>
-            <textarea
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              rows={4}
-              placeholder="Text to encrypt"
-            />
-          </div>
-          <div className="actions">
-            <button
-              className="primary"
-              onClick={encryptMessage}
-              disabled={processing}
-            >
-              Encrypt with Lit
+              Create recovery key
             </button>
           </div>
           <div className="stacked">
-            <div className="label">Ciphertext</div>
+            <div className="label">Encrypted key (latest)</div>
             <div className="value monospace">{cipherSummary || "—"}</div>
           </div>
         </article>
 
         <article className="card">
-          <h2>Decrypt instructions</h2>
-          <p className="small-muted">
-            Use the decrypt button next to any saved entry to enter a password
-            and run the Lit Action. Output is shown inline with the entry.
-          </p>
+          <h2>Recovery status</h2>
+          <div className="field-row">
+            <label>Recovery address</label>
+            <div className="value monospace">{recoverAddress || "—"}</div>
+          </div>
+          <div className="field-row">
+            <label>Threshold</label>
+            <div className="value monospace">
+              {guardianThreshold !== null ? guardianThreshold : "—"}
+            </div>
+          </div>
+          <div className="stacked">
+            <div className="label">Guardians</div>
+            <div className="value monospace">
+              {guardianHashes.length
+                ? guardianHashes.map((hash) => `${hash.slice(0, 10)}…`).join(", ")
+                : "—"}
+            </div>
+          </div>
+          <div className="stacked">
+            <div className="label">Guardian CIDs</div>
+            <div className="value monospace">
+              {guardianSummaries.length ? guardianSummaries.join(", ") : "—"}
+            </div>
+          </div>
         </article>
 
-        {storedEntries.length > 0 ? (
-          <article className="card wide">
-            <h2>Saved encryptions (local storage)</h2>
-            <div className="table">
-              <div className="table-head">
-                <span>Username</span>
-                <span>Ciphertext</span>
-                <span>Hash</span>
-                <span>Saved</span>
-                <span>Actions</span>
-                <span>Plaintext</span>
-              </div>
-              <div className="table-body">
-                {storedEntries.map((entry, idx) => (
-                  <SavedEntryRow
-                    key={`${entry.username}-${idx}`}
-                    entry={entry}
-                    onDecrypt={() => openDecryptModal(entry)}
-                    disabled={processing}
-                    plaintext={decryptedMap[entry.dataToEncryptHash]}
-                  />
-                ))}
-              </div>
+        <article className="card">
+          <h2>Lit Action config</h2>
+          <div className="stacked">
+            <div className="label">Parent action CID</div>
+            <div className="value monospace">
+              {parentActionCid || "Set VITE_PARENT_ACTION_CID"}
             </div>
-          </article>
-        ) : null}
-      </section>
+          </div>
+          <div className="stacked">
+            <div className="label">Child action CID</div>
+            <div className="value monospace">
+              {childActionCid || "Set VITE_CHILD_ACTION_CID"}
+            </div>
+          </div>
+          <div className="stacked">
+            <div className="label">Password guardian CID</div>
+            <div className="value monospace">
+              {passwordActionCid || "Set VITE_PASSWORD_ACTION_CID"}
+            </div>
+          </div>
+        </article>
 
-      {modalEntry ? (
-        <div className="modal-backdrop">
-          <div className="modal">
-            <h3>Decrypt {modalEntry.username}</h3>
-            <p className="small-muted">
-              Enter the password to verify against the on-chain hash and decrypt
-              the ciphertext.
-            </p>
-            <div className="field-row">
-              <label>Password</label>
-              <input
-                type="password"
-                value={modalPassword}
-                onChange={(e) => setModalPassword(e.target.value)}
-                placeholder="••••••••"
-              />
+        <article className="card wide">
+          <h2>Recovery auths (local)</h2>
+          <p className="small-muted">
+            Complete the required auths to unlock the recovery key.
+          </p>
+          <div className="field-row">
+            <label>Password</label>
+            <input
+              type="password"
+              value={recoverPassword}
+              onChange={(e) => setRecoverPassword(e.target.value)}
+              placeholder="••••••••"
+            />
+            <button
+              className="ghost"
+              onClick={verifyPasswordAuth}
+              disabled={processing || !recoverPassword || !recoverAddress}
+            >
+              Verify
+            </button>
+          </div>
+          <div className="field-row">
+            <label>Status</label>
+            <div className="value">
+              {authCountLabel}{" "}
+              {requiresPassword
+                ? recoverPasswordVerified
+                  ? "• ✅ Password verified"
+                  : "• Password not verified"
+                : "• Password not required"}
             </div>
-            <form
-              className="actions"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const ok = await runPasswordLitAction(
-                  modalEntry,
-                  modalPassword
+          </div>
+          <div className="actions">
+            <button
+              className="primary"
+              onClick={async () => {
+                if (!selectedEntry) {
+                  setError("No local recovery key for this address");
+                  return;
+                }
+                const ok = await runRecoveryLitAction(
+                  selectedEntry,
+                  recoverPassword
                 );
                 if (ok) {
-                  closeDecryptModal();
+                  setRecoverPassword("");
                 }
               }}
+              disabled={!selectedEntry || !thresholdMet || processing}
             >
-              <button
-                type="submit"
-                className="primary"
-                disabled={processing || !modalPassword}
-              >
-                Decrypt
-              </button>
-              <button
-                type="button"
-                className="ghost"
-                onClick={closeDecryptModal}
-              >
-                Cancel
-              </button>
-            </form>
+              Recover
+            </button>
           </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-type SavedEntryProps = {
-  entry: {
-    username: string;
-    ciphertext: string;
-    dataToEncryptHash: string;
-    createdAt: string;
-  };
-  onDecrypt: () => void;
-  disabled?: boolean;
-  plaintext?: string;
-};
-
-function SavedEntryRow({
-  entry,
-  onDecrypt,
-  disabled,
-  plaintext,
-}: SavedEntryProps) {
-  return (
-    <div className="table-row">
-      <span className="value">{entry.username}</span>
-      <span className="value monospace">{entry.ciphertext.slice(0, 24)}…</span>
-      <span className="value monospace">
-        {entry.dataToEncryptHash.slice(0, 18)}…
-      </span>
-      <span className="value">
-        {new Date(entry.createdAt).toLocaleString()}
-      </span>
-      <span className="value">
-        <button className="primary" onClick={onDecrypt} disabled={disabled}>
-          Decrypt
-        </button>
-      </span>
-      <span className="value monospace stacked">{plaintext ?? "—"}</span>
+        </article>
+      </section>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # Lit Actions for Smart Contract Configuration Management
 
-This directory contains Lit Actions that manage smart contract configuration and guardian validation for the zk-rollup system.
+This directory contains Lit Actions that manage smart contract configuration and guardian validation for recovery.
 
 ## Overview
 
@@ -22,25 +22,22 @@ The function must be named `go` and exported as `export const go = async () => {
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `chain` | string | Yes | Blockchain network identifier |
-| `rpcUrl` | string | No | Optional RPC URL (defaults to `Lit.Actions.getRpcUrl({ chain })`) |
-| `cidContractAddress` | string | Yes | Smart contract address containing CID and configuration |
-| `cidAbi` | array | Yes | Contract ABI for interaction |
-| `cidFunctionName` | string | No | Function name to call on contract (optional, defaults to standard methods) |
-| `cidArgs` | array | No | Arguments for contract function call (optional) |
-| `childParams` | object | Yes | Parameters to pass to child Lit Action |
-| `address` | string | Yes | Wallet address for configuration retrieval |
+| `guardianRegistryAddress` | string | Yes | GuardianRegistry contract address |
+| `litActionRegistryAddress` | string | Yes | LitActionRegistry contract address |
+| `userAddress` | string | Yes | User address for guardian config lookup |
+| `guardians` | array | Yes | Array of guardian descriptors to pass to the child action |
 | `ciphertext` | string | Yes | Encrypted data for child action |
 | `dataToEncryptHash` | string | Yes | Hash of data to encrypt |
+| `unifiedAccessControlConditions` | array | No | UACC passed to child for decryption |
 
 ## Smart Contract Integration
 
 ### Required Contract Methods
 
-The smart contract must implement the following methods:
+The contracts must implement the following methods:
 
-- **`getChildIPFSCID()`** - Returns IPFS CID of child Lit Action
-- **`getGuardianConfig(address)`** - Returns guardian configuration for specific address
+- **`getChildIPFSCID()`** - Returns IPFS CID of child Lit Action (LitActionRegistry)
+- **`getGuardianConfig(address)`** - Returns guardian configuration for specific address (GuardianRegistry)
 
 ### Ethers Integration
 
@@ -61,7 +58,7 @@ The implementation uses:
 The following parameters are passed to child actions:
 
 - `ipfsId` - Processed IPFS CID of child action
-- `jsParams` - Original child parameters
+- `params` - Original child parameters
 - `walletConfig` - Retrieved guardian configuration
 - `ciphertext` - Encrypted data
 - `dataToEncryptHash` - Hash for validation
@@ -124,17 +121,17 @@ The implementation provides comprehensive error handling for:
 ```javascript
 // Example jsParams for the parent Lit Action
 const jsParams = {
-  chain: "ethereum",
-  rpcUrl: "https://mainnet.infura.io/v3/YOUR_PROJECT_ID", // optional
-  cidContractAddress: "0x1234567890123456789012345678901234567890",
-  cidAbi: [
-    "function getChildIPFSCID() external view returns (string)",
-    "function getGuardianConfig(address) external view returns (tuple)"
+  guardianRegistryAddress: "0x1234567890123456789012345678901234567890",
+  litActionRegistryAddress: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+  guardians: [
+    {
+      cid: "QmGuardianCid",
+      data: {
+        // Parameters specific to the guardian action
+      },
+    },
   ],
-  childParams: {
-    // Parameters specific to the child action
-  },
-  address: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdef",
+  userAddress: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcdef",
   ciphertext: "encrypted_data_here",
   dataToEncryptHash: "hash_of_data_to_encrypt"
 };
@@ -179,7 +176,7 @@ The child action receives the following parameters from the parent action:
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `childParams` | object | Yes | Parameters specific to the child action |
+| `guardians` | array | Yes | Guardian entries of shape `{ cid, data }` |
 | `walletConfig` | object | Yes | Guardian configuration from smart contract |
 | `walletConfig.threshold` | number | Yes | Minimum number of guardian approvals required |
 | `walletConfig.guardianCIDs` | array | Yes | Array of guardian IPFS CIDs |
@@ -190,7 +187,7 @@ The child action receives the following parameters from the parent action:
 
 1. **Initialization**: Counter starts at `authed = 0`
 2. **Guardian Loop**: Iterate through `walletConfig.guardianCIDs`
-3. **Guardian Call**: Call each guardian with `Lit.Actions.call({ ipfsId: guardianCID, jsParams: childParams })`
+3. **Guardian Call**: Call each guardian with `Lit.Actions.call({ ipfsId: guardianCID, params: guardian.data })`
 4. **Response Parsing**: Parse JSON response and check `parsed.ok === true`
 5. **Counter Update**: Increment `authed` for successful guardians
 6. **Early Exit**: Break loop when `authed >= threshold` (optimization)
