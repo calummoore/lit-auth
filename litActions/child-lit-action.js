@@ -1,16 +1,19 @@
-export const go = async () => {
+const go = async () => {
   try {
-    
     // Validate required parameters
-    if (!walletConfig || !walletConfig.guardianCIDs || !walletConfig.threshold) {
+    if (
+      !walletConfig ||
+      !walletConfig.guardianCIDs ||
+      !walletConfig.threshold
+    ) {
       Lit.Actions.setResponse({
         response: JSON.stringify({
           ok: false,
           error: "validation_error",
           message: "Missing required walletConfig parameters",
           authenticated: 0,
-          required: 0
-        })
+          required: 0,
+        }),
       });
       return;
     }
@@ -22,15 +25,15 @@ export const go = async () => {
           error: "validation_error",
           message: "Missing ciphertext or dataToEncryptHash",
           authenticated: 0,
-          required: walletConfig.threshold
-        })
+          required: walletConfig.threshold,
+        }),
       });
       return;
     }
 
     // Extract guardian configuration
     const { guardianCIDs, threshold } = walletConfig;
-    
+
     if (!Array.isArray(guardianCIDs) || guardianCIDs.length === 0) {
       Lit.Actions.setResponse({
         response: JSON.stringify({
@@ -38,15 +41,15 @@ export const go = async () => {
           error: "validation_error",
           message: "No guardian CIDs provided",
           authenticated: 0,
-          required: threshold
-        })
+          required: threshold,
+        }),
       });
       return;
     }
 
     // Initialize guardian validation counter
     let authed = 0;
-    
+
     // Validate each guardian
     for (const guardianCID of guardianCIDs) {
       try {
@@ -55,7 +58,7 @@ export const go = async () => {
         if (cleanCID.startsWith("ipfs://")) {
           cleanCID = cleanCID.slice("ipfs://".length);
         }
-        
+
         if (!cleanCID) {
           continue; // Skip invalid CIDs
         }
@@ -63,7 +66,7 @@ export const go = async () => {
         // Call guardian Lit Action
         const guardianResponse = await Lit.Actions.call({
           ipfsId: cleanCID,
-          jsParams: childParams || {}
+          jsParams: childParams || {},
         });
 
         // Parse guardian response
@@ -78,13 +81,12 @@ export const go = async () => {
         // Check if guardian authenticated successfully
         if (parsed && parsed.ok === true) {
           authed++;
-          
+
           // Early termination optimization - if we have enough guardians, break
           if (authed >= threshold) {
             break;
           }
         }
-
       } catch (guardianError) {
         // Guardian call failed, continue to next guardian
         // Individual guardian failures should not stop the process
@@ -99,8 +101,8 @@ export const go = async () => {
           ok: false,
           error: "insufficient_guardians",
           authenticated: authed,
-          required: threshold
-        })
+          required: threshold,
+        }),
       });
       return;
     }
@@ -111,17 +113,16 @@ export const go = async () => {
         accessControlConditions: [],
         ciphertext: ciphertext,
         dataToEncryptHash: dataToEncryptHash,
-        chain: "ethereum"
+        chain: "ethereum",
       });
 
       // Return successful response
       Lit.Actions.setResponse({
         response: JSON.stringify({
           ok: true,
-          result: decryptedData
-        })
+          result: decryptedData,
+        }),
       });
-
     } catch (decryptionError) {
       // Decryption failed
       Lit.Actions.setResponse({
@@ -130,11 +131,10 @@ export const go = async () => {
           error: "decryption_failed",
           message: decryptionError.message || "Decryption operation failed",
           authenticated: authed,
-          required: threshold
-        })
+          required: threshold,
+        }),
       });
     }
-
   } catch (error) {
     // General execution error
     Lit.Actions.setResponse({
@@ -143,8 +143,10 @@ export const go = async () => {
         error: "validation_error",
         message: error.message || "Child action execution failed",
         authenticated: 0,
-        required: 0
-      })
+        required: 0,
+      }),
     });
   }
 };
+
+go();
