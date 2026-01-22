@@ -9,11 +9,25 @@ const throwErr = (code, message, data) => {
   throw err;
 };
 
-const requireParam = (obj, key) => {
-  if (!obj || obj[key] === undefined || obj[key] === null || obj[key] === "") {
+const optionalParam = (key) => {
+  let value;
+  if (typeof jsParams !== "undefined" && jsParams && jsParams[key] !== undefined) {
+    value = jsParams[key];
+  } else if (typeof globalThis !== "undefined" && globalThis[key] !== undefined) {
+    value = globalThis[key];
+  }
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  return value;
+};
+
+const requireParam = (key) => {
+  const value = optionalParam(key);
+  if (value === undefined) {
     throwErr("validation-error", `Missing required ${key}`);
   }
-  return obj[key];
+  return value;
 };
 
 const cleanCid = (cid) => {
@@ -24,16 +38,12 @@ const cleanCid = (cid) => {
 const go = async () => {
   try {
     // Get required inputs from jsParams
-    const guardianRegistryAddress = requireParam(
-      jsParams,
-      "guardianRegistryAddress"
-    );
-    const userAddress = requireParam(jsParams, "userAddress");
-    const ciphertext = requireParam(jsParams, "ciphertext");
-    const dataToEncryptHash = requireParam(jsParams, "dataToEncryptHash");
-    const guardians = requireParam(jsParams, "guardians");
+    const guardianRegistryAddress = requireParam("guardianRegistryAddress");
+    const userAddress = requireParam("userAddress");
+    const ciphertext = requireParam("ciphertext");
+    const dataToEncryptHash = requireParam("dataToEncryptHash");
+    const guardians = requireParam("guardians");
     const unifiedAccessControlConditions = requireParam(
-      jsParams,
       "unifiedAccessControlConditions"
     );
 

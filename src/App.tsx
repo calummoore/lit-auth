@@ -268,6 +268,29 @@ function App() {
     });
   };
 
+  useEffect(() => {
+    const reconnectWallet = async () => {
+      const ethereum = (window as any).ethereum;
+      if (!ethereum) return;
+      try {
+        const accounts = await ethereum.request({ method: "eth_accounts" });
+        if (accounts && accounts.length > 0) {
+          const account = accounts[0];
+          setWalletAddress(account);
+          walletClientRef.current = createWalletClient({
+            account,
+            chain: polygon,
+            transport: custom(ethereum),
+          });
+        }
+      } catch {
+        // ignore reconnect errors
+      }
+    };
+
+    void reconnectWallet();
+  }, []);
+
   const disconnect = () => {
     litClientRef.current?.disconnect();
     litClientRef.current = null;
