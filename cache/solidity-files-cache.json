@@ -1,44 +1,8 @@
 {
   "_format": "hh-sol-cache-2",
   "files": {
-    "/Users/calummoore/projects/polybase/dev/lit-auth-2/contracts/PasswordRegistry.sol": {
-      "lastModificationDate": 1768485392868,
-      "contentHash": "42fdbd91534e64ad90a5aa1e2d15f4a6",
-      "sourceName": "contracts/PasswordRegistry.sol",
-      "solcConfig": {
-        "version": "0.8.24",
-        "settings": {
-          "evmVersion": "paris",
-          "optimizer": {
-            "enabled": false,
-            "runs": 200
-          },
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [],
-      "versionPragmas": [
-        "^0.8.24"
-      ],
-      "artifacts": [
-        "PasswordRegistry"
-      ]
-    },
-    "/Users/calummoore/projects/polybase/dev/lit-auth-2/contracts/GuardianRegistry.sol": {
-      "lastModificationDate": 1768913236150,
+    "/Users/chris/Documents/WorkStuff/Lit/testing-and-throwaway/lit-auth/contracts/GuardianRegistry.sol": {
+      "lastModificationDate": 1769190345424,
       "contentHash": "4a42fdb8b89f9dd1d1a21fe316a2786a",
       "sourceName": "contracts/GuardianRegistry.sol",
       "solcConfig": {
@@ -73,8 +37,8 @@
         "GuardianRegistry"
       ]
     },
-    "/Users/calummoore/projects/polybase/dev/lit-auth-2/contracts/LitActionRegistry.sol": {
-      "lastModificationDate": 1768911058873,
+    "/Users/chris/Documents/WorkStuff/Lit/testing-and-throwaway/lit-auth/contracts/LitActionRegistry.sol": {
+      "lastModificationDate": 1769190345425,
       "contentHash": "cb390a33af363fd87a028d7335393346",
       "sourceName": "contracts/LitActionRegistry.sol",
       "solcConfig": {
@@ -107,6 +71,42 @@
       ],
       "artifacts": [
         "LitActionRegistry"
+      ]
+    },
+    "/Users/chris/Documents/WorkStuff/Lit/testing-and-throwaway/lit-auth/contracts/PasswordRegistry.sol": {
+      "lastModificationDate": 1768844966443,
+      "contentHash": "42fdbd91534e64ad90a5aa1e2d15f4a6",
+      "sourceName": "contracts/PasswordRegistry.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.24"
+      ],
+      "artifacts": [
+        "PasswordRegistry"
       ]
     }
   }

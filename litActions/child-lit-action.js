@@ -174,7 +174,7 @@ const go = async () => {
     // Threshold met - proceed with decryption
     try {
       const decryptedData = await Lit.Actions.decryptAndCombine({
-        unifiedAccessControlConditions: unifiedAccessControlConditions || [],
+        accessControlConditions: unifiedAccessControlConditions || [],
         ciphertext,
         dataToEncryptHash,
         chain: "polygon",
@@ -189,8 +189,13 @@ const go = async () => {
     } catch (decryptionError) {
       // Decryption failed
       throwErr(
-        "decryption-failed",
-        decryptionError.message || "Decryption operation failed"
+        "decryption-failed - testing 1 2 3",
+        decryptionError.message + " " + JSON.stringify({
+          unifiedAccessControlConditions: unifiedAccessControlConditions || [],
+          ciphertext,
+          dataToEncryptHash,
+          chain: "polygon",
+        }) || "Decryption operation failed"
       );
     }
   } catch (error) {
