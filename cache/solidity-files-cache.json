@@ -74,8 +74,8 @@
       ]
     },
     "/Users/calummoore/projects/polybase/dev/lit-auth-2/contracts/LitActionRegistry.sol": {
-      "lastModificationDate": 1768911058873,
-      "contentHash": "cb390a33af363fd87a028d7335393346",
+      "lastModificationDate": 1769426803500,
+      "contentHash": "6632f06e801d181cffc4a9c4ecb9cd92",
       "sourceName": "contracts/LitActionRegistry.sol",
       "solcConfig": {
         "version": "0.8.24",

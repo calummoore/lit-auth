@@ -174,7 +174,7 @@ const go = async () => {
     // Threshold met - proceed with decryption
     try {
       const decryptedData = await Lit.Actions.decryptAndCombine({
-        unifiedAccessControlConditions: unifiedAccessControlConditions || [],
+        accessControlConditions: unifiedAccessControlConditions || [],
         ciphertext,
         dataToEncryptHash,
         chain: "polygon",

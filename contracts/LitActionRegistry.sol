@@ -8,7 +8,10 @@ contract LitActionRegistry {
     address public owner;
 
     event ChildIPFSCIDUpdated(string cid);
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner
+    );
 
     constructor(string memory initialCID) {
         owner = msg.sender;
@@ -27,6 +30,12 @@ contract LitActionRegistry {
 
     function getChildIPFSCID() external view returns (string memory) {
         return childIPFSCID;
+    }
+
+    function isChildIPFSCID(string calldata cid) external view returns (bool) {
+        return
+            keccak256(abi.encodePacked(childIPFSCID)) ==
+            keccak256(abi.encodePacked(cid));
     }
 
     function transferOwnership(address nextOwner) external onlyOwner {
