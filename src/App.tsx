@@ -721,7 +721,10 @@ function App() {
     try {
       const litClient = litClientRef.current;
       const expiration = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-      const resources: ShorthandResources = [["lit-action-execution", "*"]];
+      const resources: ShorthandResources = [
+        ["access-control-condition-signing", "*"],
+        ["lit-action-execution", "*"],
+      ];
 
       const authContext = await authManagerRef.current.createEoaAuthContext({
         config: {
