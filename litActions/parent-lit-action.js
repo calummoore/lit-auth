@@ -48,6 +48,12 @@ const go = async () => {
     const unifiedAccessControlConditions = requireParam(
       "unifiedAccessControlConditions"
     );
+    if (!Array.isArray(unifiedAccessControlConditions)) {
+      throwErr(
+        "validation-error",
+        "unifiedAccessControlConditions must be an array"
+      );
+    }
 
     // Smart contract interaction using ethers (available globally)
     const litActionUrl = await Lit.Actions.getRpcUrl({ chain: "polygon" });
@@ -97,8 +103,32 @@ const go = async () => {
       );
     }
 
-    // Return structured response
-    setResponse(childActionRes);
+    if (!childActionRes || childActionRes.ok !== true) {
+      setResponse(childActionRes);
+      return;
+    }
+
+    // Child ok - proceed with decryption
+    try {
+      const decryptedData = await Lit.Actions.decryptAndCombine({
+        accessControlConditions: unifiedAccessControlConditions || [],
+        ciphertext,
+        dataToEncryptHash,
+        chain: "polygon",
+      });
+
+      setResponse({
+        ok: true,
+        action: "parent",
+        result: decryptedData,
+        child: childActionRes,
+      });
+    } catch (decryptionError) {
+      throwErr(
+        "decryption-failed",
+        decryptionError.message || "Decryption operation failed"
+      );
+    }
   } catch (error) {
     setResponse({
       ok: false,

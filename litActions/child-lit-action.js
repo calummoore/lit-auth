@@ -53,17 +53,9 @@ const go = async () => {
     // Get required inputs from jsParams
     const guardianRegistryAddress = requireParam("guardianRegistryAddress");
     const userAddress = requireParam("userAddress");
-    const ciphertext = requireParam("ciphertext");
-    const dataToEncryptHash = requireParam("dataToEncryptHash");
     const guardians = requireParam("guardians");
-    const unifiedAccessControlConditions = requireParam(
-      "unifiedAccessControlConditions"
-    );
-    if (!Array.isArray(unifiedAccessControlConditions)) {
-      throwErr(
-        "validation-error",
-        "unifiedAccessControlConditions must be an array"
-      );
+    if (!Array.isArray(guardians)) {
+      throwErr("validation-error", "guardians must be an array");
     }
 
     // Fetch guardian configuration from chain
@@ -171,28 +163,13 @@ const go = async () => {
       });
     }
 
-    // Threshold met - proceed with decryption
-    try {
-      const decryptedData = await Lit.Actions.decryptAndCombine({
-        accessControlConditions: unifiedAccessControlConditions || [],
-        ciphertext,
-        dataToEncryptHash,
-        chain: "polygon",
-      });
-
-      // Return successful response
-      setResponse({
-        ok: true,
-        action: "child",
-        result: decryptedData,
-      });
-    } catch (decryptionError) {
-      // Decryption failed
-      throwErr(
-        "decryption-failed",
-        decryptionError.message || "Decryption operation failed"
-      );
-    }
+    // Threshold met - return ok so the parent can decrypt
+    setResponse({
+      ok: true,
+      action: "child",
+      authenticated: authed,
+      required: threshold,
+    });
   } catch (error) {
     // General execution error
     setResponse({

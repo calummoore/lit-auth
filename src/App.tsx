@@ -199,7 +199,7 @@ function App() {
 
   useEffect(() => {
     // Build UACC that gates on the child Lit Action
-    if (!childActionCid) return;
+    if (!parentActionCid) return;
 
     // this condition says:
     // if the current action running matches childActionCid, then the lit action can decrypt the data.
@@ -214,7 +214,7 @@ function App() {
         parameters: [":currentActionIpfsId"],
         returnValueTest: {
           comparator: "=",
-          value: childActionCid,
+          value: parentActionCid,
         },
       },
     ];
@@ -222,7 +222,7 @@ function App() {
     setUacc(uacc);
 
     // Acc builder doesn't support ":currentActionIpfsId" yet, so we manually define it.
-  }, [childActionCid]);
+  }, [parentActionCid]);
 
   const persistEntry = (entry: {
     address: string;
