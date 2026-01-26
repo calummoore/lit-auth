@@ -22,7 +22,6 @@ The function must be named `go` and exported as `export const go = async () => {
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `litActionRegistryAddress` | string | Yes | LitActionRegistry contract address |
 | `userAddress` | string | Yes | User address for guardian config lookup |
 | `guardians` | array | Yes | Array of guardian descriptors to pass to the child action |
 | `ciphertext` | string | Yes | Encrypted data for child action |
@@ -120,7 +119,6 @@ The implementation provides comprehensive error handling for:
 ```javascript
 // Example jsParams for the parent Lit Action
 const jsParams = {
-  litActionRegistryAddress: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
   guardians: [
     {
       cid: "QmGuardianCid",

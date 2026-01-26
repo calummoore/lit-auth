@@ -9,6 +9,10 @@ const throwErr = (code, message, data) => {
   throw err;
 };
 
+// Update this address after each LitActionRegistry deployment.
+const LIT_ACTION_REGISTRY_ADDRESS =
+  "0x12C24a06C0206A7199e4B5bcdACa7Cf23e374AA4";
+
 const optionalParam = (key) => {
   let value;
   if (
@@ -40,7 +44,6 @@ const requireParam = (key) => {
 const go = async () => {
   try {
     // Get required params
-    const litActionRegistryAddress = requireParam("litActionRegistryAddress");
     const userAddress = requireParam("userAddress");
     const guardians = requireParam("guardians");
     const ciphertext = requireParam("ciphertext");
@@ -62,7 +65,7 @@ const go = async () => {
     );
 
     const litActionContract = new ethers.Contract(
-      litActionRegistryAddress,
+      LIT_ACTION_REGISTRY_ADDRESS,
       ["function getChildIPFSCID() view returns (string)"],
       litActionProvider
     );
