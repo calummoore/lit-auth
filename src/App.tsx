@@ -61,6 +61,8 @@ function App() {
   const walletActionCid = normalizeCid(walletActionCidRaw);
   const parentActionCidRaw = import.meta.env.VITE_PARENT_ACTION_CID || "";
   const parentActionCid = normalizeCid(parentActionCidRaw);
+  const signActionCidRaw = import.meta.env.VITE_SIGN_ACTION_CID || "";
+  const signActionCid = normalizeCid(signActionCidRaw);
   const fallbackChildActionCidRaw = import.meta.env.VITE_CHILD_ACTION_CID || "";
   const fallbackChildActionCid = normalizeCid(fallbackChildActionCidRaw);
   const litClientRef = useRef<LitClientType | null>(null);
@@ -110,6 +112,11 @@ function App() {
     }[]
   >([]);
   const [decryptedMap, setDecryptedMap] = useState<Record<string, string>>({});
+  const [signResult, setSignResult] = useState<{
+    signature: string;
+    message: string;
+    timestamp: number;
+  } | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [uacc, setUacc] = useState<any>(null);
   const authManagerRef = useRef(
@@ -146,6 +153,7 @@ function App() {
       setWalletGuardianVerified(false);
       setWalletGuardianSignature("");
       setWalletGuardianIssuedAt("");
+      setSignResult(null);
       return;
     }
     const storedPassword = localStorage.getItem(
@@ -675,6 +683,123 @@ function App() {
     }
   };
 
+  const runSignLitAction = async (entry: { address: string }) => {
+    if (!signActionCid) {
+      setError(
+        "Set VITE_SIGN_ACTION_CID to the IPFS CID of sign-lit-action.js before signing."
+      );
+      return false;
+    }
+    if (!litClientRef.current) {
+      setError("Connect to Lit first");
+      return false;
+    }
+    if (guardianThreshold === null) {
+      setError("Guardian threshold not loaded yet");
+      return false;
+    }
+    if (!thresholdMet) {
+      setError("Verify enough guardians to meet the threshold");
+      return false;
+    }
+    if (walletGuardianVerified) {
+      if (!walletGuardianSignature || !walletGuardianIssuedAt) {
+        setError("Wallet signature missing, verify again");
+        return false;
+      }
+      const issuedAtMs = Date.parse(walletGuardianIssuedAt);
+      if (!Number.isFinite(issuedAtMs)) {
+        setError("Wallet signature missing or invalid");
+        return false;
+      }
+      if (Date.now() - issuedAtMs > 15 * 60 * 1000) {
+        setError("Wallet signature expired, verify again");
+        return false;
+      }
+    }
+    setProcessing(true);
+    try {
+      const litClient = litClientRef.current;
+      const expiration = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      const resources: ShorthandResources = [["lit-action-execution", "*"]];
+
+      const authContext = await authManagerRef.current.createEoaAuthContext({
+        config: {
+          account: ephemeralAccount,
+        },
+        authConfig: {
+          domain: window.location.host,
+          statement: "Lit guardian sign",
+          expiration,
+          resources,
+        },
+        litClient,
+      });
+
+      const guardians: { cid: string; data: Record<string, any> }[] = [];
+      if (requiresPassword && recoverPasswordVerified) {
+        guardians.push({
+          cid: passwordActionCid,
+          data: {
+            password: recoverPassword,
+            hashAlgorithm: "SHA-256",
+          },
+        });
+      }
+      if (requiresWallet && walletGuardianVerified) {
+        guardians.push({
+          cid: walletActionCid,
+          data: {
+            signature: walletGuardianSignature,
+            issuedAt: walletGuardianIssuedAt,
+          },
+        });
+      }
+      if (!guardians.length) {
+        setError("No verified guardians available");
+        return false;
+      }
+
+      const jsParams = {
+        userAddress: entry.address,
+        guardians,
+      };
+
+      console.log("jsParams", jsParams);
+
+      const response = await litClient.executeJs({
+        ipfsId: signActionCid,
+        authContext,
+        jsParams,
+      });
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(response.response as string);
+      } catch {
+        parsed = null;
+      }
+
+      if (!parsed?.ok) {
+        setError(formatLitError(parsed, "Sign failed"));
+        return false;
+      }
+
+      setSignResult({
+        signature: parsed.signature,
+        message: parsed.message,
+        timestamp: parsed.timestamp,
+      });
+      setError(null);
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign failed");
+      return false;
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const clearLocalData = () => {
     localStorage.removeItem("lit-guardian-entries");
     localStorage.removeItem("lit-guardian-last-address");
@@ -693,6 +818,7 @@ function App() {
     setWalletGuardianVerified(false);
     setWalletGuardianSignature("");
     setWalletGuardianIssuedAt("");
+    setSignResult(null);
     setError(null);
     setMenuOpen(false);
   };
@@ -737,7 +863,12 @@ function App() {
     if (requiresPassword && recoverPasswordVerified) count += 1;
     if (requiresWallet && walletGuardianVerified) count += 1;
     return count;
-  }, [requiresPassword, recoverPasswordVerified, requiresWallet, walletGuardianVerified]);
+  }, [
+    requiresPassword,
+    recoverPasswordVerified,
+    requiresWallet,
+    walletGuardianVerified,
+  ]);
 
   const thresholdMet = useMemo(() => {
     if (guardianThreshold === null) return false;
@@ -961,7 +1092,9 @@ function App() {
       setWalletGuardianVerified(true);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Wallet verification failed");
+      setError(
+        err instanceof Error ? err.message : "Wallet verification failed"
+      );
       setWalletGuardianVerified(false);
     } finally {
       setProcessing(false);
@@ -1001,7 +1134,9 @@ function App() {
       }
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to fetch guardian type");
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch guardian type"
+      );
     }
   };
 
@@ -1041,7 +1176,9 @@ function App() {
       await lookupGuardianType();
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to set guardian type");
+      setError(
+        err instanceof Error ? err.message : "Failed to set guardian type"
+      );
     } finally {
       setProcessing(false);
     }
@@ -1229,9 +1366,7 @@ function App() {
           ) : null}
           <div className="stacked">
             <div className="label">Registry owner</div>
-            <div className="value monospace">
-              {guardianOwner || "—"}
-            </div>
+            <div className="value monospace">{guardianOwner || "—"}</div>
           </div>
           <div className="field-row">
             <label>Guardian CID</label>
@@ -1359,6 +1494,29 @@ function App() {
             >
               Recover
             </button>
+            <button
+              className="ghost"
+              onClick={async () => {
+                if (!selectedEntry) {
+                  setError("No local recovery key for this address");
+                  return;
+                }
+                await runSignLitAction({ address: selectedEntry.address });
+              }}
+              disabled={!selectedEntry || !thresholdMet || processing}
+            >
+              Sign
+            </button>
+          </div>
+          <div className="stacked">
+            <div className="label">Signature</div>
+            <div className="value monospace">
+              {signResult?.signature || "—"}
+            </div>
+          </div>
+          <div className="stacked">
+            <div className="label">Signed message</div>
+            <div className="value monospace">{signResult?.message || "—"}</div>
           </div>
         </article>
       </section>

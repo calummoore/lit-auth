@@ -43,54 +43,34 @@ const requireParam = (key) => {
 
 const go = async () => {
   try {
-    // Get required params
     const userAddress = requireParam("userAddress");
     const guardians = requireParam("guardians");
-    const ciphertext = requireParam("ciphertext");
-    const dataToEncryptHash = requireParam("dataToEncryptHash");
-    const unifiedAccessControlConditions = requireParam(
-      "unifiedAccessControlConditions"
-    );
-    if (!Array.isArray(unifiedAccessControlConditions)) {
-      throwErr(
-        "validation-error",
-        "unifiedAccessControlConditions must be an array"
-      );
+    if (!Array.isArray(guardians)) {
+      throwErr("validation-error", "guardians must be an array");
     }
 
-    // Smart contract interaction using ethers (available globally)
     const litActionUrl = await Lit.Actions.getRpcUrl({ chain: "polygon" });
     const litActionProvider = new ethers.providers.JsonRpcProvider(
       litActionUrl
     );
-
     const litActionContract = new ethers.Contract(
       LIT_ACTION_REGISTRY_ADDRESS,
       ["function getChildIPFSCID() view returns (string)"],
       litActionProvider
     );
 
-    // Retrieve child action IPFS CID and configuration data
     let cid = await litActionContract["getChildIPFSCID"]();
-
-    // Process IPFS CID format
     cid = (cid || "").toString();
     if (cid.startsWith("ipfs://")) cid = cid.slice("ipfs://".length);
 
-    // Call child Lit Action with configuration
     const childActionResRaw = await Lit.Actions.call({
       ipfsId: cid,
-      // LitActions uses params when passing in, but then creates the global
-      // jsParams.
       params: {
         guardians: guardians || [],
         userAddress,
-        ciphertext,
-        dataToEncryptHash,
       },
     });
 
-    // Attempt to parse the child action response JSON
     let childActionRes;
     try {
       childActionRes = JSON.parse(childActionResRaw || "");
@@ -109,36 +89,35 @@ const go = async () => {
       return;
     }
 
-    // Child ok - proceed with decryption
-    try {
-      const normalizedDataHash = (dataToEncryptHash || "").startsWith("0x")
-        ? dataToEncryptHash.slice(2)
-        : dataToEncryptHash;
-      const decryptedData = await Lit.Actions.decryptAndCombine({
-        accessControlConditions: unifiedAccessControlConditions,
-        ciphertext,
-        dataToEncryptHash: normalizedDataHash,
-        chain: "polygon",
-      });
+    const timestamp = Math.floor(Date.now() / 1000);
+    const message = `Lit Guardian Signature\naddress: ${userAddress}\ntimestamp: ${timestamp}`;
+    const toSign = ethers.utils.arrayify(
+      ethers.utils.keccak256(ethers.utils.toUtf8Bytes(message))
+    );
+    const sigName = "GUARDIAN_USER_SIG";
+    const signingScheme = "EcdsaK256Sha256";
 
-      setResponse({
-        ok: true,
-        action: "parent",
-        result: decryptedData,
-        child: childActionRes,
-      });
-    } catch (decryptionError) {
-      throwErr(
-        "decryption-failed",
-        decryptionError.message || "Decryption operation failed"
-      );
-    }
+    const signature = await Lit.Actions.signAsAction({
+      toSign,
+      sigName,
+      signingScheme,
+    });
+
+    setResponse({
+      ok: true,
+      signature: ethers.utils.hexlify(signature),
+      sigName,
+      signingScheme,
+      message,
+      timestamp,
+      child: childActionRes,
+    });
   } catch (error) {
     setResponse({
       ok: false,
-      action: "parent",
-      error: error.code,
-      message: error.message,
+      action: "sign",
+      error: error.code ?? "execution_failed",
+      message: error.message || "Signing action failed",
       data: error.data,
     });
   }

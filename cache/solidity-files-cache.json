@@ -1,45 +1,9 @@
 {
   "_format": "hh-sol-cache-2",
   "files": {
-    "/Users/calummoore/projects/polybase/dev/lit-auth-2/contracts/PasswordRegistry.sol": {
-      "lastModificationDate": 1768485392868,
-      "contentHash": "42fdbd91534e64ad90a5aa1e2d15f4a6",
-      "sourceName": "contracts/PasswordRegistry.sol",
-      "solcConfig": {
-        "version": "0.8.24",
-        "settings": {
-          "evmVersion": "paris",
-          "optimizer": {
-            "enabled": false,
-            "runs": 200
-          },
-          "outputSelection": {
-            "*": {
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers",
-                "metadata"
-              ],
-              "": [
-                "ast"
-              ]
-            }
-          }
-        }
-      },
-      "imports": [],
-      "versionPragmas": [
-        "^0.8.24"
-      ],
-      "artifacts": [
-        "PasswordRegistry"
-      ]
-    },
     "/Users/calummoore/projects/polybase/dev/lit-auth-2/contracts/GuardianRegistry.sol": {
-      "lastModificationDate": 1769432109274,
-      "contentHash": "4d6a4ebce94853705acd0ed50bad76a4",
+      "lastModificationDate": 1769433999794,
+      "contentHash": "64dcc439c1b802a164819a58791fe75e",
       "sourceName": "contracts/GuardianRegistry.sol",
       "solcConfig": {
         "version": "0.8.24",

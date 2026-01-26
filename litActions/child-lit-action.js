@@ -51,8 +51,8 @@ const go = async () => {
     const guardianRegistryAddress = GUARDIAN_REGISTRY_ADDRESS;
     const userAddress = requireParam("userAddress");
     const guardians = requireParam("guardians");
-    const ciphertext = requireParam("ciphertext");
-    const dataToEncryptHash = requireParam("dataToEncryptHash");
+    const ciphertext = optionalParam("ciphertext");
+    const dataToEncryptHash = optionalParam("dataToEncryptHash");
     if (!Array.isArray(guardians)) {
       throwErr("validation-error", "guardians must be an array");
     }
@@ -83,23 +83,25 @@ const go = async () => {
     ) {
       throwErr("validation-error", "No guardian CIDs provided");
     }
-    if (!cipherHash || cipherHash === ethers.constants.HashZero) {
-      throwErr("validation-error", "Missing cipher hash for user");
-    }
-    const normalizedDataHash = (dataToEncryptHash || "").startsWith("0x")
-      ? dataToEncryptHash
-      : `0x${dataToEncryptHash}`;
-    const expectedCipherHash = ethers.utils.keccak256(
-      ethers.utils.defaultAbiCoder.encode(
-        ["string", "bytes32"],
-        [ciphertext, normalizedDataHash]
-      )
-    );
-    if (expectedCipherHash.toLowerCase() !== cipherHash.toLowerCase()) {
-      throwErr("cipher-mismatch", "Cipher hash does not match user", {
-        expected: expectedCipherHash.toLowerCase(),
-        got: cipherHash.toLowerCase(),
-      });
+    if (ciphertext && dataToEncryptHash) {
+      if (!cipherHash || cipherHash === ethers.constants.HashZero) {
+        throwErr("validation-error", "Missing cipher hash for user");
+      }
+      const normalizedDataHash = dataToEncryptHash.startsWith("0x")
+        ? dataToEncryptHash
+        : `0x${dataToEncryptHash}`;
+      const expectedCipherHash = ethers.utils.keccak256(
+        ethers.utils.defaultAbiCoder.encode(
+          ["string", "bytes32"],
+          [ciphertext, normalizedDataHash]
+        )
+      );
+      if (expectedCipherHash.toLowerCase() !== cipherHash.toLowerCase()) {
+        throwErr("cipher-mismatch", "Cipher hash does not match user", {
+          expected: expectedCipherHash.toLowerCase(),
+          got: cipherHash.toLowerCase(),
+        });
+      }
     }
 
     // Initialize guardian validation counter

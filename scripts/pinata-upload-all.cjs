@@ -8,6 +8,7 @@ const FILES = [
   'litActions/wallet.js',
   'litActions/child-lit-action.js',
   'litActions/parent-lit-action.js',
+  'litActions/sign-lit-action.js',
 ]
 const ENV_LOCAL = '.env.local'
 
@@ -78,6 +79,7 @@ async function main() {
       cidMap.INITIAL_CHILD_LIT_ACTION_CID = cid
     }
     if (filePath.includes('parent')) cidMap.VITE_PARENT_ACTION_CID = cid
+    if (filePath.includes('sign-lit-action')) cidMap.VITE_SIGN_ACTION_CID = cid
   }
 
   const envLines = fs.existsSync(ENV_LOCAL)
