@@ -11,7 +11,7 @@ const throwErr = (code, message, data) => {
 
 // Update this address after each LitActionRegistry deployment.
 const LIT_ACTION_REGISTRY_ADDRESS =
-  "0xa4d048ae5894cA7Be8D09E6196dFD5232473DfbC";
+  "0xe1bC5d5D130f0687bac2527D2e971E1Aa875c4f4";
 
 const optionalParam = (key) => {
   let value;
@@ -111,10 +111,13 @@ const go = async () => {
 
     // Child ok - proceed with decryption
     try {
+      const normalizedDataHash = (dataToEncryptHash || "").startsWith("0x")
+        ? dataToEncryptHash.slice(2)
+        : dataToEncryptHash;
       const decryptedData = await Lit.Actions.decryptAndCombine({
         accessControlConditions: unifiedAccessControlConditions,
         ciphertext,
-        dataToEncryptHash,
+        dataToEncryptHash: normalizedDataHash,
         chain: "polygon",
       });
 

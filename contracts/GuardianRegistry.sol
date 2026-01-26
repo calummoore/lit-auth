@@ -13,6 +13,12 @@ contract GuardianRegistry {
     bytes32 private constant REMOVE_GUARDIAN_TYPEHASH =
         keccak256("RemoveGuardian(address user,bytes32 guardianCIDHash,uint256 nonce,uint256 deadline)");
 
+    struct GuardianType {
+        string name;
+        bool isUniqueAuthValue;
+        bool exists;
+    }
+
     struct GuardianConfig {
         uint256 threshold;
         bytes32[] guardianCIDs;
@@ -24,11 +30,32 @@ contract GuardianRegistry {
     mapping(address => GuardianConfig) private guardianConfigs;
     mapping(bytes32 => address) private authValueToAddress;
     mapping(address => uint256) public nonces;
+    mapping(bytes32 => GuardianType) private guardianTypes;
+
+    address public owner;
 
     event GuardianAdded(address indexed user, bytes32 indexed guardianCIDHash, bytes32 authValueHash);
     event CipherHashSet(address indexed user, bytes32 cipherHash);
     event GuardianRemoved(address indexed user, bytes32 indexed guardianCIDHash);
     event ThresholdUpdated(address indexed user, uint256 threshold);
+    event GuardianTypeSet(bytes32 indexed guardianCIDHash, string name, bool isUniqueAuthValue);
+    event OwnerUpdated(address indexed previousOwner, address indexed newOwner);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "GuardianRegistry: not owner");
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender;
+        emit OwnerUpdated(address(0), msg.sender);
+    }
+
+    function setOwner(address newOwner) external onlyOwner {
+        require(newOwner != address(0), "GuardianRegistry: invalid owner");
+        emit OwnerUpdated(owner, newOwner);
+        owner = newOwner;
+    }
 
     function addGuardian(bytes32 guardianCIDHash, bytes32 authValueHash, bytes32 cipherHash) external {
         _addGuardian(msg.sender, guardianCIDHash, authValueHash, cipherHash);
@@ -111,6 +138,29 @@ contract GuardianRegistry {
         return guardianConfigs[user].threshold;
     }
 
+    function setGuardianType(
+        bytes32 guardianCIDHash,
+        string calldata name,
+        bool isUniqueAuthValue
+    ) external onlyOwner {
+        require(guardianCIDHash != bytes32(0), "GuardianRegistry: invalid CID hash");
+        guardianTypes[guardianCIDHash] = GuardianType({
+            name: name,
+            isUniqueAuthValue: isUniqueAuthValue,
+            exists: true
+        });
+        emit GuardianTypeSet(guardianCIDHash, name, isUniqueAuthValue);
+    }
+
+    function getGuardianType(bytes32 guardianCIDHash)
+        external
+        view
+        returns (string memory name, bool isUniqueAuthValue, bool exists)
+    {
+        GuardianType storage gType = guardianTypes[guardianCIDHash];
+        return (gType.name, gType.isUniqueAuthValue, gType.exists);
+    }
+
     function _updateThreshold(GuardianConfig storage config, address user) internal {
         uint256 n = config.guardianCIDs.length;
         uint256 nextThreshold = n <= 1 ? n : (n + 1) / 2;
@@ -141,7 +191,14 @@ contract GuardianRegistry {
         config.guardianIndex[guardianCIDHash] = config.guardianCIDs.length;
         config.guardianEntries[guardianCIDHash] = authValueHash;
 
-        authValueToAddress[authValueHash] = user;
+        GuardianType storage gType = guardianTypes[guardianCIDHash];
+        if (gType.isUniqueAuthValue) {
+            require(
+                authValueToAddress[authValueHash] == address(0),
+                "GuardianRegistry: auth value already used"
+            );
+            authValueToAddress[authValueHash] = user;
+        }
 
         _updateThreshold(config, user);
         emit GuardianAdded(user, guardianCIDHash, authValueHash);

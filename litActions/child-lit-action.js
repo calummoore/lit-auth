@@ -86,10 +86,13 @@ const go = async () => {
     if (!cipherHash || cipherHash === ethers.constants.HashZero) {
       throwErr("validation-error", "Missing cipher hash for user");
     }
+    const normalizedDataHash = (dataToEncryptHash || "").startsWith("0x")
+      ? dataToEncryptHash
+      : `0x${dataToEncryptHash}`;
     const expectedCipherHash = ethers.utils.keccak256(
       ethers.utils.defaultAbiCoder.encode(
         ["string", "bytes32"],
-        [ciphertext, "0x" + dataToEncryptHash]
+        [ciphertext, normalizedDataHash]
       )
     );
     if (expectedCipherHash.toLowerCase() !== cipherHash.toLowerCase()) {

@@ -105,6 +105,42 @@ export const guardianRegistryAbi = [
     stateMutability: 'view',
     type: 'function',
   },
+  {
+    inputs: [],
+    name: 'owner',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'address', name: 'newOwner', type: 'address' }],
+    name: 'setOwner',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'bytes32', name: 'guardianCIDHash', type: 'bytes32' },
+      { internalType: 'string', name: 'name', type: 'string' },
+      { internalType: 'bool', name: 'isUniqueAuthValue', type: 'bool' },
+    ],
+    name: 'setGuardianType',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'bytes32', name: 'guardianCIDHash', type: 'bytes32' }],
+    name: 'getGuardianType',
+    outputs: [
+      { internalType: 'string', name: 'name', type: 'string' },
+      { internalType: 'bool', name: 'isUniqueAuthValue', type: 'bool' },
+      { internalType: 'bool', name: 'exists', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const
 
 export const GUARDIAN_REGISTRY_ADDRESS =

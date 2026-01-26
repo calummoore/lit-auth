@@ -5,6 +5,7 @@ const PinataClient = require('@pinata/sdk')
 
 const FILES = [
   'litActions/password.js',
+  'litActions/wallet.js',
   'litActions/child-lit-action.js',
   'litActions/parent-lit-action.js',
 ]
@@ -71,6 +72,7 @@ async function main() {
   const cidMap = {}
   for (const { filePath, cid } of results) {
     if (filePath.includes('password')) cidMap.VITE_PASSWORD_ACTION_CID = cid
+    if (filePath.includes('wallet')) cidMap.VITE_WALLET_ACTION_CID = cid
     if (filePath.includes('child')) {
       cidMap.VITE_CHILD_ACTION_CID = cid
       cidMap.INITIAL_CHILD_LIT_ACTION_CID = cid

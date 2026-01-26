@@ -38,8 +38,8 @@
       ]
     },
     "/Users/calummoore/projects/polybase/dev/lit-auth-2/contracts/GuardianRegistry.sol": {
-      "lastModificationDate": 1769429370718,
-      "contentHash": "46e497967130acf0299c5cf6b2176875",
+      "lastModificationDate": 1769432109274,
+      "contentHash": "4d6a4ebce94853705acd0ed50bad76a4",
       "sourceName": "contracts/GuardianRegistry.sol",
       "solcConfig": {
         "version": "0.8.24",

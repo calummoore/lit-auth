@@ -13,6 +13,7 @@ The parent Lit Action integrates with smart contracts to retrieve configuration 
 - **`parent-lit-action.js`** - Main parent action with the `go` function implementation
 - **`child-lit-action.js`** - Child action for guardian threshold validation and decryption
 - **`password.js`** - Password verification action that compares plaintext passwords against hashes
+- **`wallet.js`** - Wallet signature verification action with 15-minute expiry
 
 ### Function Signature
 
@@ -184,6 +185,22 @@ The child action receives the following parameters from the parent action:
 5. **Counter Update**: Increment `authed` for successful guardians
 6. **Early Exit**: Break loop when `authed >= threshold` (optimization)
 7. **Threshold Check**: Proceed only if `authed >= threshold`
+
+## Wallet Guardian Action
+
+The wallet guardian action verifies a signed message from the guardian wallet and enforces a 15-minute signature window.
+
+**Expected jsParams:**
+- `authValueHash` (bytes32) - address encoded as bytes32
+- `signature` (string) - wallet signature
+- `issuedAt` (string) - ISO timestamp used in the signed message
+
+**Message format:**
+```
+Lit Guardian Wallet Auth
+address: 0x...
+issuedAt: 2025-01-01T00:00:00.000Z
+```
 
 ## Child Action Response Formats
 

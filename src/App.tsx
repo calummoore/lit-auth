@@ -35,22 +35,34 @@ async function hashPassword(password: string, algorithm: string) {
   return "0x" + hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function normalizeCid(value: string) {
+  return value.replace("ipfs://", "").replace("lit-litaction://", "").trim();
+}
+
+function addressToBytes32(address: string) {
+  const raw = address.toLowerCase().replace("0x", "");
+  return `0x${raw.padStart(64, "0")}`;
+}
+
+function bytes32ToAddress(value: string) {
+  const hex = value.toLowerCase().replace("0x", "");
+  if (hex.length < 40) return "";
+  return `0x${hex.slice(-40)}`;
+}
+
+function makeWalletMessage(address: string, issuedAt: string) {
+  return `Lit Guardian Wallet Auth\naddress: ${address}\nissuedAt: ${issuedAt}`;
+}
+
 function App() {
   const passwordActionCidRaw = import.meta.env.VITE_PASSWORD_ACTION_CID || "";
-  const passwordActionCid = passwordActionCidRaw
-    .replace("ipfs://", "")
-    .replace("lit-litaction://", "")
-    .trim();
+  const passwordActionCid = normalizeCid(passwordActionCidRaw);
+  const walletActionCidRaw = import.meta.env.VITE_WALLET_ACTION_CID || "";
+  const walletActionCid = normalizeCid(walletActionCidRaw);
   const parentActionCidRaw = import.meta.env.VITE_PARENT_ACTION_CID || "";
-  const parentActionCid = parentActionCidRaw
-    .replace("ipfs://", "")
-    .replace("lit-litaction://", "")
-    .trim();
+  const parentActionCid = normalizeCid(parentActionCidRaw);
   const fallbackChildActionCidRaw = import.meta.env.VITE_CHILD_ACTION_CID || "";
-  const fallbackChildActionCid = fallbackChildActionCidRaw
-    .replace("ipfs://", "")
-    .replace("lit-litaction://", "")
-    .trim();
+  const fallbackChildActionCid = normalizeCid(fallbackChildActionCidRaw);
   const litClientRef = useRef<LitClientType | null>(null);
   const [connectionState, setConnectionState] =
     useState<ConnectionState>("idle");
@@ -73,6 +85,19 @@ function App() {
   const [guardianHashes, setGuardianHashes] = useState<string[]>([]);
   const [recoverPassword, setRecoverPassword] = useState("");
   const [recoverPasswordVerified, setRecoverPasswordVerified] = useState(false);
+  const [useWalletGuardian, setUseWalletGuardian] = useState(false);
+  const [walletGuardianVerified, setWalletGuardianVerified] = useState(false);
+  const [walletGuardianSignature, setWalletGuardianSignature] = useState("");
+  const [walletGuardianIssuedAt, setWalletGuardianIssuedAt] = useState("");
+  const [guardianTypeCid, setGuardianTypeCid] = useState("");
+  const [guardianTypeName, setGuardianTypeName] = useState("");
+  const [guardianTypeUnique, setGuardianTypeUnique] = useState(false);
+  const [guardianTypeLookup, setGuardianTypeLookup] = useState<{
+    name: string;
+    isUniqueAuthValue: boolean;
+    exists: boolean;
+  } | null>(null);
+  const [guardianOwner, setGuardianOwner] = useState<string | null>(null);
   const guardianRegistryAddress = GUARDIAN_REGISTRY_ADDRESS;
   const litActionRegistryAddress = LIT_ACTION_REGISTRY_ADDRESS;
   const guardianRpcUrl = import.meta.env.VITE_POLYGON_RPC_URL || "";
@@ -118,6 +143,9 @@ function App() {
     if (!recoverAddress) {
       setRecoverPassword("");
       setRecoverPasswordVerified(false);
+      setWalletGuardianVerified(false);
+      setWalletGuardianSignature("");
+      setWalletGuardianIssuedAt("");
       return;
     }
     const storedPassword = localStorage.getItem(
@@ -131,6 +159,30 @@ function App() {
       setRecoverPasswordVerified(false);
     }
   }, [recoverAddress]);
+
+  useEffect(() => {
+    if (!guardianRegistryAddress || !guardianRpcUrl) {
+      setGuardianOwner(null);
+      return;
+    }
+    const fetchOwner = async () => {
+      try {
+        const publicClient = createPublicClient({
+          chain: polygon,
+          transport: http(guardianRpcUrl),
+        });
+        const owner = await publicClient.readContract({
+          address: guardianRegistryAddress as `0x${string}`,
+          abi: guardianRegistryAbi,
+          functionName: "owner",
+        });
+        setGuardianOwner(owner as string);
+      } catch {
+        setGuardianOwner(null);
+      }
+    };
+    void fetchOwner();
+  }, [guardianRegistryAddress, guardianRpcUrl]);
 
   useEffect(() => {
     const fetchChildCid = async () => {
@@ -341,6 +393,10 @@ function App() {
       setError("Enter a guardian password");
       return;
     }
+    if (useWalletGuardian && !walletActionCid) {
+      setError("Set VITE_WALLET_ACTION_CID in your .env");
+      return;
+    }
     setProcessing(true);
     try {
       const privateKey = generatePrivateKey();
@@ -356,29 +412,29 @@ function App() {
       if (!res.ciphertext || !res.dataToEncryptHash) {
         throw new Error("Encryption failed");
       }
-      console.log(res.ciphertext, res.dataToEncryptHash);
+      const normalizedDataHash = res.dataToEncryptHash.startsWith("0x")
+        ? res.dataToEncryptHash
+        : `0x${res.dataToEncryptHash}`;
       const cipherHash = keccak256(
         encodeAbiParameters(
           [{ type: "string" }, { type: "bytes32" }],
-          [res.ciphertext, ("0x" + res.dataToEncryptHash) as `0x${string}`]
+          [res.ciphertext, normalizedDataHash as `0x${string}`]
         )
       );
       if (res.ciphertext && res.dataToEncryptHash) {
         persistEntry({
           address,
           ciphertext: res.ciphertext,
-          dataToEncryptHash: res.dataToEncryptHash,
+          dataToEncryptHash: normalizedDataHash,
           createdAt: new Date().toISOString(),
         });
       }
 
-      const authValueHash = await hashPassword(password, "SHA-256");
-      const guardianCIDHash = keccak256(toBytes(passwordActionCid));
       const publicClient = createPublicClient({
         chain: polygon,
         transport: http(guardianRpcUrl),
       });
-      const nonce = await publicClient.readContract({
+      let nonce = await publicClient.readContract({
         address: guardianRegistryAddress as `0x${string}`,
         abi: guardianRegistryAbi,
         functionName: "nonces",
@@ -387,59 +443,89 @@ function App() {
       const gasPrice = (await publicClient.getGasPrice()) * 2n;
       const deadline = Math.floor(Date.now() / 1000) + 10 * 60;
 
-      const signature = await account.signTypedData({
-        domain: {
-          name: "GuardianRegistry",
-          version: "1",
-          chainId: polygon.id,
-          verifyingContract: guardianRegistryAddress as `0x${string}`,
-        },
-        types: {
-          AddGuardian: [
-            { name: "user", type: "address" },
-            { name: "guardianCIDHash", type: "bytes32" },
-            { name: "authValueHash", type: "bytes32" },
-            { name: "cipherHash", type: "bytes32" },
-            { name: "nonce", type: "uint256" },
-            { name: "deadline", type: "uint256" },
+      const addGuardian = async (
+        guardianCIDHash: `0x${string}`,
+        authValueHash: `0x${string}`
+      ) => {
+        const signature = await account.signTypedData({
+          domain: {
+            name: "GuardianRegistry",
+            version: "1",
+            chainId: polygon.id,
+            verifyingContract: guardianRegistryAddress as `0x${string}`,
+          },
+          types: {
+            AddGuardian: [
+              { name: "user", type: "address" },
+              { name: "guardianCIDHash", type: "bytes32" },
+              { name: "authValueHash", type: "bytes32" },
+              { name: "cipherHash", type: "bytes32" },
+              { name: "nonce", type: "uint256" },
+              { name: "deadline", type: "uint256" },
+            ],
+          },
+          primaryType: "AddGuardian",
+          message: {
+            user: address as `0x${string}`,
+            guardianCIDHash,
+            authValueHash,
+            cipherHash: cipherHash as `0x${string}`,
+            nonce,
+            deadline,
+          },
+        });
+        const { v, r, s } = hexToSignature(signature);
+        const txHash = await walletClientRef.current!.writeContract({
+          address: guardianRegistryAddress as `0x${string}`,
+          abi: guardianRegistryAbi,
+          functionName: "addGuardianWithSig",
+          args: [
+            address as `0x${string}`,
+            guardianCIDHash,
+            authValueHash,
+            cipherHash as `0x${string}`,
+            nonce,
+            deadline,
+            v,
+            r,
+            s,
           ],
-        },
-        primaryType: "AddGuardian",
-        message: {
-          user: address as `0x${string}`,
-          guardianCIDHash,
-          authValueHash: authValueHash as `0x${string}`,
-          cipherHash: cipherHash as `0x${string}`,
-          nonce,
-          deadline,
-        },
-      });
-      const { v, r, s } = hexToSignature(signature);
-      const txHash = await walletClientRef.current.writeContract({
-        address: guardianRegistryAddress as `0x${string}`,
-        abi: guardianRegistryAbi,
-        functionName: "addGuardianWithSig",
-        args: [
-          address as `0x${string}`,
-          guardianCIDHash,
-          authValueHash as `0x${string}`,
-          cipherHash as `0x${string}`,
-          nonce,
-          deadline,
-          v,
-          r,
-          s,
-        ],
-        account: walletAddress as `0x${string}`,
-        chain: polygon,
-        gasPrice,
-      });
+          account: walletAddress as `0x${string}`,
+          chain: polygon,
+          gasPrice,
+        });
+        await publicClient.waitForTransactionReceipt({ hash: txHash });
+        nonce += 1n;
+        return txHash;
+      };
+
+      const passwordAuthValueHash = (await hashPassword(
+        password,
+        "SHA-256"
+      )) as `0x${string}`;
+      const passwordGuardianCIDHash = keccak256(
+        toBytes(passwordActionCid)
+      ) as `0x${string}`;
+      const txHash = await addGuardian(
+        passwordGuardianCIDHash,
+        passwordAuthValueHash
+      );
+
+      if (useWalletGuardian) {
+        const walletGuardianCIDHash = keccak256(
+          toBytes(walletActionCid)
+        ) as `0x${string}`;
+        const walletAuthValueHash = addressToBytes32(
+          walletAddress
+        ) as `0x${string}`;
+        await addGuardian(walletGuardianCIDHash, walletAuthValueHash);
+      }
 
       localStorage.setItem("lit-guardian-last-address", address);
       setRecoverAddress(address);
-      await publicClient.waitForTransactionReceipt({ hash: txHash });
       await fetchGuardianConfig(address);
       setPassword("");
+      setUseWalletGuardian(false);
       setError(null);
       console.log("Guardian registered tx:", txHash);
     } catch (err) {
@@ -471,9 +557,32 @@ function App() {
       setError("Set lit action registry address in your .env");
       return false;
     }
-    if (!providedPassword || !recoverPasswordVerified) {
-      setError("Verify your password first");
+    if (requiresWallet && !walletActionCid) {
+      setError("Set VITE_WALLET_ACTION_CID in your .env");
       return false;
+    }
+    if (guardianThreshold === null) {
+      setError("Guardian threshold not loaded yet");
+      return false;
+    }
+    if (!thresholdMet) {
+      setError("Verify enough guardians to meet the threshold");
+      return false;
+    }
+    if (walletGuardianVerified) {
+      if (!walletGuardianSignature || !walletGuardianIssuedAt) {
+        setError("Wallet signature missing, verify again");
+        return false;
+      }
+      const issuedAtMs = Date.parse(walletGuardianIssuedAt);
+      if (!Number.isFinite(issuedAtMs)) {
+        setError("Wallet signature missing or invalid");
+        return false;
+      }
+      if (Date.now() - issuedAtMs > 15 * 60 * 1000) {
+        setError("Wallet signature expired, verify again");
+        return false;
+      }
     }
     setProcessing(true);
     try {
@@ -497,18 +606,34 @@ function App() {
         litClient,
       });
 
+      const guardians: { cid: string; data: Record<string, any> }[] = [];
+      if (requiresPassword && recoverPasswordVerified) {
+        guardians.push({
+          cid: passwordActionCid,
+          data: {
+            password: providedPassword,
+            hashAlgorithm: "SHA-256",
+          },
+        });
+      }
+      if (requiresWallet && walletGuardianVerified) {
+        guardians.push({
+          cid: walletActionCid,
+          data: {
+            signature: walletGuardianSignature,
+            issuedAt: walletGuardianIssuedAt,
+          },
+        });
+      }
+      if (!guardians.length) {
+        setError("No verified guardians available");
+        return false;
+      }
+
       const jsParams = {
         litActionRegistryAddress,
         userAddress: entry.address,
-        guardians: [
-          {
-            cid: passwordActionCid,
-            data: {
-              password: providedPassword,
-              hashAlgorithm: "SHA-256",
-            },
-          },
-        ],
+        guardians,
         ciphertext: entry.ciphertext,
         dataToEncryptHash: entry.dataToEncryptHash,
         unifiedAccessControlConditions: uacc,
@@ -564,6 +689,10 @@ function App() {
     setRecoverAddress("");
     setRecoverPassword("");
     setRecoverPasswordVerified(false);
+    setUseWalletGuardian(false);
+    setWalletGuardianVerified(false);
+    setWalletGuardianSignature("");
+    setWalletGuardianIssuedAt("");
     setError(null);
     setMenuOpen(false);
   };
@@ -588,15 +717,27 @@ function App() {
     return keccak256(toBytes(passwordActionCid)).toLowerCase();
   }, [passwordActionCid]);
 
+  const walletGuardianHash = useMemo(() => {
+    if (!walletActionCid) return "";
+    return keccak256(toBytes(walletActionCid)).toLowerCase();
+  }, [walletActionCid]);
+
   const requiresPassword = useMemo(() => {
     if (!guardianHashes.length || !passwordGuardianHash) return false;
     return guardianHashes.includes(passwordGuardianHash);
   }, [guardianHashes, passwordGuardianHash]);
 
+  const requiresWallet = useMemo(() => {
+    if (!guardianHashes.length || !walletGuardianHash) return false;
+    return guardianHashes.includes(walletGuardianHash);
+  }, [guardianHashes, walletGuardianHash]);
+
   const authedCount = useMemo(() => {
-    if (!requiresPassword) return 0;
-    return recoverPasswordVerified ? 1 : 0;
-  }, [requiresPassword, recoverPasswordVerified]);
+    let count = 0;
+    if (requiresPassword && recoverPasswordVerified) count += 1;
+    if (requiresWallet && walletGuardianVerified) count += 1;
+    return count;
+  }, [requiresPassword, recoverPasswordVerified, requiresWallet, walletGuardianVerified]);
 
   const thresholdMet = useMemo(() => {
     if (guardianThreshold === null) return false;
@@ -607,6 +748,11 @@ function App() {
     if (guardianThreshold === null) return "—";
     return `${authedCount}/${guardianThreshold} verified`;
   }, [authedCount, guardianThreshold]);
+
+  const isGuardianOwner = useMemo(() => {
+    if (!guardianOwner || !walletAddress) return false;
+    return guardianOwner.toLowerCase() === walletAddress.toLowerCase();
+  }, [guardianOwner, walletAddress]);
 
   const formatLitError = (parsed: any, fallback: string) => {
     const code = parsed?.error ?? fallback;
@@ -708,18 +854,217 @@ function App() {
     }
   };
 
+  const verifyWalletAuth = async () => {
+    if (!recoverAddress) {
+      setError("Enter a recovery address first");
+      return;
+    }
+    if (!walletActionCid) {
+      setError("Set VITE_WALLET_ACTION_CID in your .env");
+      return;
+    }
+    if (!guardianRegistryAddress || !guardianRpcUrl) {
+      setError("Set guardian registry address and RPC URL");
+      return;
+    }
+    if (!walletClientRef.current || !walletAddress) {
+      setError("Connect your wallet first");
+      return;
+    }
+    if (!litClientRef.current) {
+      setError("Connect to Lit first");
+      return;
+    }
+
+    setProcessing(true);
+    try {
+      const publicClient = createPublicClient({
+        chain: polygon,
+        transport: http(guardianRpcUrl),
+      });
+      const guardianCIDHash = keccak256(toBytes(walletActionCid));
+      const authValueHash = await publicClient.readContract({
+        address: guardianRegistryAddress as `0x${string}`,
+        abi: guardianRegistryAbi,
+        functionName: "getGuardianEntry",
+        args: [
+          recoverAddress as `0x${string}`,
+          guardianCIDHash as `0x${string}`,
+        ],
+      });
+      if ((authValueHash as string).toLowerCase() === "0x" + "0".repeat(64)) {
+        setError("Wallet guardian not configured for this address");
+        setWalletGuardianVerified(false);
+        return;
+      }
+
+      const authAddress = bytes32ToAddress(authValueHash as string);
+      if (!authAddress) {
+        setError("Wallet guardian auth value is not a valid address");
+        setWalletGuardianVerified(false);
+        return;
+      }
+      if (authAddress.toLowerCase() !== walletAddress.toLowerCase()) {
+        setError("Connected wallet does not match guardian auth address");
+        setWalletGuardianVerified(false);
+        return;
+      }
+
+      const issuedAt = new Date().toISOString();
+      const message = makeWalletMessage(authAddress, issuedAt);
+      const signature = await walletClientRef.current.signMessage({
+        account: walletAddress as `0x${string}`,
+        message,
+      });
+
+      const litClient = litClientRef.current;
+      const expiration = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      const resources: ShorthandResources = [["lit-action-execution", "*"]];
+      const authContext = await authManagerRef.current.createEoaAuthContext({
+        config: {
+          account: ephemeralAccount,
+        },
+        authConfig: {
+          domain: window.location.host,
+          statement: "Verify guardian wallet",
+          expiration,
+          resources,
+        },
+        litClient,
+      });
+
+      const response = await litClient.executeJs({
+        ipfsId: walletActionCid,
+        authContext,
+        jsParams: {
+          signature,
+          issuedAt,
+          authValueHash,
+        },
+      });
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(response.response as string);
+      } catch {
+        parsed = null;
+      }
+
+      if (!parsed?.ok) {
+        setError(formatLitError(parsed, "Wallet verification failed"));
+        setWalletGuardianVerified(false);
+        return;
+      }
+
+      setWalletGuardianSignature(signature);
+      setWalletGuardianIssuedAt(issuedAt);
+      setWalletGuardianVerified(true);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Wallet verification failed");
+      setWalletGuardianVerified(false);
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const lookupGuardianType = async () => {
+    if (!guardianTypeCid) {
+      setError("Enter a guardian CID to look up");
+      return;
+    }
+    if (!guardianRegistryAddress || !guardianRpcUrl) {
+      setError("Set guardian registry address and RPC URL");
+      return;
+    }
+    try {
+      const publicClient = createPublicClient({
+        chain: polygon,
+        transport: http(guardianRpcUrl),
+      });
+      const cidHash = keccak256(toBytes(normalizeCid(guardianTypeCid)));
+      const result = await publicClient.readContract({
+        address: guardianRegistryAddress as `0x${string}`,
+        abi: guardianRegistryAbi,
+        functionName: "getGuardianType",
+        args: [cidHash as `0x${string}`],
+      });
+      const [name, isUniqueAuthValue, exists] = result as [
+        string,
+        boolean,
+        boolean
+      ];
+      setGuardianTypeLookup({ name, isUniqueAuthValue, exists });
+      if (exists) {
+        setGuardianTypeName(name);
+        setGuardianTypeUnique(isUniqueAuthValue);
+      }
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to fetch guardian type");
+    }
+  };
+
+  const setGuardianType = async () => {
+    if (!guardianTypeCid) {
+      setError("Enter a guardian CID");
+      return;
+    }
+    if (!guardianTypeName) {
+      setError("Enter a guardian name");
+      return;
+    }
+    if (!guardianRegistryAddress || !guardianRpcUrl) {
+      setError("Set guardian registry address and RPC URL");
+      return;
+    }
+    if (!walletClientRef.current || !walletAddress) {
+      setError("Connect your wallet first");
+      return;
+    }
+    setProcessing(true);
+    try {
+      const cidHash = keccak256(toBytes(normalizeCid(guardianTypeCid)));
+      const txHash = await walletClientRef.current.writeContract({
+        address: guardianRegistryAddress as `0x${string}`,
+        abi: guardianRegistryAbi,
+        functionName: "setGuardianType",
+        args: [cidHash as `0x${string}`, guardianTypeName, guardianTypeUnique],
+        account: walletAddress as `0x${string}`,
+        chain: polygon,
+      });
+      const publicClient = createPublicClient({
+        chain: polygon,
+        transport: http(guardianRpcUrl),
+      });
+      await publicClient.waitForTransactionReceipt({ hash: txHash });
+      await lookupGuardianType();
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to set guardian type");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const guardianSummaries = useMemo(() => {
     if (!guardianHashes.length) return [];
     const passwordHash = passwordActionCid
       ? keccak256(toBytes(passwordActionCid)).toLowerCase()
       : "";
+    const walletHash = walletActionCid
+      ? keccak256(toBytes(walletActionCid)).toLowerCase()
+      : "";
     return guardianHashes.map((hash) => {
       if (passwordHash && hash === passwordHash) {
         return "Password";
       }
+      if (walletHash && hash === walletHash) {
+        return "Wallet";
+      }
       return `Unknown (${hash.slice(0, 10)}…)`;
     });
-  }, [guardianHashes, passwordActionCid]);
+  }, [guardianHashes, passwordActionCid, walletActionCid]);
 
   return (
     <div className="page">
@@ -818,6 +1163,18 @@ function App() {
               placeholder="••••••••"
             />
           </div>
+          <div className="field-row">
+            <label>Wallet guardian</label>
+            <input
+              type="checkbox"
+              checked={useWalletGuardian}
+              onChange={(e) => setUseWalletGuardian(e.target.checked)}
+              disabled={!walletActionCid}
+            />
+            <div className="value monospace">
+              {walletActionCid || "Set VITE_WALLET_ACTION_CID"}
+            </div>
+          </div>
           <div className="actions">
             <button
               className="primary"
@@ -864,24 +1221,71 @@ function App() {
         </article>
 
         <article className="card">
-          <h2>Lit Action config</h2>
+          <h2>Guardian types (admin)</h2>
+          {walletAddress && guardianOwner && !isGuardianOwner ? (
+            <p className="small-muted">
+              Connected wallet is not the registry owner.
+            </p>
+          ) : null}
           <div className="stacked">
-            <div className="label">Parent action CID</div>
+            <div className="label">Registry owner</div>
             <div className="value monospace">
-              {parentActionCid || "Set VITE_PARENT_ACTION_CID"}
+              {guardianOwner || "—"}
             </div>
           </div>
-          <div className="stacked">
-            <div className="label">Child action CID</div>
-            <div className="value monospace">
-              {childActionCid || "Set VITE_CHILD_ACTION_CID"}
-            </div>
+          <div className="field-row">
+            <label>Guardian CID</label>
+            <input
+              type="text"
+              value={guardianTypeCid}
+              onChange={(e) => setGuardianTypeCid(e.target.value)}
+              placeholder="Qm... or ipfs://..."
+            />
+            <button
+              className="ghost"
+              onClick={lookupGuardianType}
+              disabled={processing || !guardianTypeCid}
+            >
+              Lookup
+            </button>
+          </div>
+          <div className="field-row">
+            <label>Name</label>
+            <input
+              type="text"
+              value={guardianTypeName}
+              onChange={(e) => setGuardianTypeName(e.target.value)}
+              placeholder="Password"
+            />
+          </div>
+          <div className="field-row">
+            <label>Unique auth value</label>
+            <input
+              type="checkbox"
+              checked={guardianTypeUnique}
+              onChange={(e) => setGuardianTypeUnique(e.target.checked)}
+            />
           </div>
           <div className="stacked">
-            <div className="label">Password guardian CID</div>
+            <div className="label">Current config</div>
             <div className="value monospace">
-              {passwordActionCid || "Set VITE_PASSWORD_ACTION_CID"}
+              {guardianTypeLookup
+                ? guardianTypeLookup.exists
+                  ? `${guardianTypeLookup.name} • ${
+                      guardianTypeLookup.isUniqueAuthValue ? "unique" : "shared"
+                    }`
+                  : "Not configured"
+                : "—"}
             </div>
+          </div>
+          <div className="actions">
+            <button
+              className="primary"
+              onClick={setGuardianType}
+              disabled={processing || !guardianTypeCid || !guardianTypeName}
+            >
+              Save guardian type
+            </button>
           </div>
         </article>
 
@@ -907,6 +1311,19 @@ function App() {
             </button>
           </div>
           <div className="field-row">
+            <label>Wallet</label>
+            <div className="value">
+              {walletAddress ? "Connected" : "Not connected"}
+            </div>
+            <button
+              className="ghost"
+              onClick={verifyWalletAuth}
+              disabled={processing || !recoverAddress || !walletActionCid}
+            >
+              Sign
+            </button>
+          </div>
+          <div className="field-row">
             <label>Status</label>
             <div className="value">
               {authCountLabel}{" "}
@@ -915,6 +1332,11 @@ function App() {
                   ? "• ✅ Password verified"
                   : "• Password not verified"
                 : "• Password not required"}
+              {requiresWallet
+                ? walletGuardianVerified
+                  ? " • ✅ Wallet verified"
+                  : " • Wallet not verified"
+                : " • Wallet not required"}
             </div>
           </div>
           <div className="actions">
