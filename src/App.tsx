@@ -773,6 +773,8 @@ function App() {
         jsParams,
       });
 
+      console.log("response", response);
+
       let parsed: any;
       try {
         parsed = JSON.parse(response.response as string);

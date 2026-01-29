@@ -33,7 +33,7 @@ function createClient() {
 
 async function pinFile(pinata, filePath) {
   if (!fs.existsSync(filePath)) {
-    console.warn(`Skipping missing file: ${filePath}`)
+    console.log(`Skipping missing file: ${filePath}`)
     return null
   }
   const stream = fs.createReadStream(filePath)
