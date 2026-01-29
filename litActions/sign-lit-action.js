@@ -11,7 +11,7 @@ const throwErr = (code, message, data) => {
 
 // Update this address after each LitActionRegistry deployment.
 const LIT_ACTION_REGISTRY_ADDRESS =
-  "0xD534C87f885255394B620ed5a2FfaDe957D67Eae";
+  "0xf0CCDCCdfb3AF3b7C21884b6Bd141c7BBC8e7aA5";
 
 const optionalParam = (key) => {
   let value;
@@ -105,7 +105,7 @@ const go = async () => {
 
     setResponse({
       ok: true,
-      signature: ethers.utils.hexlify(signature),
+      signature: signature,
       sigName,
       signingScheme,
       message,

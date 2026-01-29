@@ -10,7 +10,7 @@ const throwErr = (code, message, data) => {
 };
 
 // Update this address after each GuardianRegistry deployment.
-const GUARDIAN_REGISTRY_ADDRESS = "0x5aFf3Db9D55B07c6548e7253C2A8f88749479F33";
+const GUARDIAN_REGISTRY_ADDRESS = "0xD3E99Ad39c2C9E19cc184C0ade66C09f7b0F560c";
 
 const optionalParam = (key) => {
   let value;
@@ -81,7 +81,12 @@ const go = async () => {
       guardianCIDHashes.length === 0 ||
       guardianCIDs.length === 0
     ) {
-      throwErr("validation-error", "No guardian CIDs provided");
+      throwErr("validation-error", "No guardian CIDs provided" + JSON.stringify({
+        guardianCIDHashes,
+        guardianCIDs,
+        guardians,
+        rawConfig
+      }));
     }
     if (ciphertext && dataToEncryptHash) {
       if (!cipherHash || cipherHash === ethers.constants.HashZero) {

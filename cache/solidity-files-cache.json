@@ -1,8 +1,8 @@
 {
   "_format": "hh-sol-cache-2",
   "files": {
-    "/Users/calummoore/projects/polybase/dev/lit-auth-2/contracts/GuardianRegistry.sol": {
-      "lastModificationDate": 1769433999794,
+    "/Users/chris/Documents/WorkStuff/Lit/testing-and-throwaway/lit-auth/contracts/GuardianRegistry.sol": {
+      "lastModificationDate": 1769477488811,
       "contentHash": "64dcc439c1b802a164819a58791fe75e",
       "sourceName": "contracts/GuardianRegistry.sol",
       "solcConfig": {
@@ -37,8 +37,8 @@
         "GuardianRegistry"
       ]
     },
-    "/Users/calummoore/projects/polybase/dev/lit-auth-2/contracts/LitActionRegistry.sol": {
-      "lastModificationDate": 1769426803500,
+    "/Users/chris/Documents/WorkStuff/Lit/testing-and-throwaway/lit-auth/contracts/LitActionRegistry.sol": {
+      "lastModificationDate": 1769477488812,
       "contentHash": "6632f06e801d181cffc4a9c4ecb9cd92",
       "sourceName": "contracts/LitActionRegistry.sol",
       "solcConfig": {
