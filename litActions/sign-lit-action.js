@@ -105,7 +105,7 @@ const go = async () => {
 
     setResponse({
       ok: true,
-      signature: ethers.utils.hexlify(signature),
+      signature,
       sigName,
       signingScheme,
       message,

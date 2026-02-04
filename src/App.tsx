@@ -684,6 +684,7 @@ function App() {
   };
 
   const runSignLitAction = async (entry: { address: string }) => {
+    setError("");
     if (!signActionCid) {
       setError(
         "Set VITE_SIGN_ACTION_CID to the IPFS CID of sign-lit-action.js before signing."
@@ -776,12 +777,9 @@ function App() {
         jsParams,
       });
 
-      let parsed: any;
-      try {
-        parsed = JSON.parse(response.response as string);
-      } catch {
-        parsed = null;
-      }
+      const parsed = response.response as any;
+
+      console.log(response);
 
       if (!parsed?.ok) {
         setError(formatLitError(parsed, "Sign failed"));
