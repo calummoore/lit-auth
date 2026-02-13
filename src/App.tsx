@@ -947,15 +947,21 @@ function App() {
         litClient,
       });
 
+      const jsParams = {
+        password: recoverPassword,
+        authValueHash,
+        hashAlgorithm: "SHA-256",
+      };
+
+      console.log("password", passwordActionCid, jsParams);
+
       const response = await litClient.executeJs({
         ipfsId: passwordActionCid,
         authContext,
-        jsParams: {
-          password: recoverPassword,
-          authValueHash,
-          hashAlgorithm: "SHA-256",
-        },
+        jsParams,
       });
+
+      console.log(response);
 
       let parsed: any;
       try {
@@ -977,6 +983,7 @@ function App() {
       setRecoverPasswordVerified(true);
       setError(null);
     } catch (err) {
+      console.log(err);
       setError(
         err instanceof Error ? err.message : "Password verification failed"
       );

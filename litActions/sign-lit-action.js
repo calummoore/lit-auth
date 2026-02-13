@@ -11,7 +11,7 @@ const throwErr = (code, message, data) => {
 
 // Update this address after each LitActionRegistry deployment.
 const LIT_ACTION_REGISTRY_ADDRESS =
-  "0xD534C87f885255394B620ed5a2FfaDe957D67Eae";
+  "0x099a0741A04C47df0aE99868B695d9aa43cD21B3";
 
 const optionalParam = (key) => {
   let value;
