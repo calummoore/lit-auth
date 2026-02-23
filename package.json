@@ -13,8 +13,9 @@
     "deploy:guardian-registry": "hardhat run scripts/deploy.ts --network polygon",
     "deploy:lit-action-registry": "hardhat run scripts/deploy-lit-action-registry.ts --network polygon",
     "pinata:upload": "node scripts/pinata-upload.cjs",
-    "pinata:upload-all": "node scripts/pinata-upload-all.cjs",
-    "lit:action-pks": "node scripts/generate-lit-action-pks.js"
+    "pinata:upload-all": "node scripts/pinata-upload-all.cjs && yarn lit:action-pks",
+    "lit:action-pks": "node scripts/generate-lit-action-pks.js",
+    "update:sign-action-key": "hardhat run scripts/update-sign-action-public-key.ts"
   },
   "dependencies": {
     "@lit-protocol/access-control-conditions": "^8.0.2",

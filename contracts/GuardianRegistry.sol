@@ -52,11 +52,14 @@ contract GuardianRegistry {
     }
 
     constructor(bytes memory initialSignActionPublicKey) {
-        _publicKeyToAddress(initialSignActionPublicKey);
         owner = msg.sender;
-        signActionPublicKey = initialSignActionPublicKey;
         emit OwnerUpdated(address(0), msg.sender);
-        emit SignActionPublicKeyUpdated(initialSignActionPublicKey);
+
+        if (initialSignActionPublicKey.length != 0) {
+            _publicKeyToAddress(initialSignActionPublicKey);
+            signActionPublicKey = initialSignActionPublicKey;
+            emit SignActionPublicKeyUpdated(initialSignActionPublicKey);
+        }
     }
 
     function setOwner(address newOwner) external onlyOwner {
