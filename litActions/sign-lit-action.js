@@ -44,7 +44,7 @@ const requireParam = (key) => {
 const go = async () => {
   try {
     const userAddress = requireParam("userAddress");
-    const userAddressNormalized = userAddress.toLowerCase();
+    const userAddressNormalized = ethers.utils.getAddress(userAddress);
     const guardians = requireParam("guardians");
     if (!Array.isArray(guardians)) {
       throwErr("validation-error", "guardians must be an array");
@@ -89,12 +89,14 @@ const go = async () => {
       setResponse(childActionRes);
       return;
     }
-
     const timestamp = Math.floor(Date.now() / 1000);
-    const message = `Lit Guardian Signature\ncid: ${cid}\naddress: ${userAddressNormalized}\ntimestamp: ${timestamp}`;
-    const toSign = ethers.utils.arrayify(
-      ethers.utils.keccak256(ethers.utils.toUtf8Bytes(message))
+    const cidHash = ethers.utils.keccak256(ethers.utils.toUtf8Bytes(cid));
+    const packed = ethers.utils.solidityPack(
+      ["bytes32", "address", "uint256"],
+      [cidHash, userAddressNormalized, timestamp]
     );
+    const messageHash = ethers.utils.keccak256(packed);
+    const toSign = ethers.utils.arrayify(messageHash);
     const sigName = "GUARDIAN_USER_SIG";
     const signingScheme = "EcdsaK256Sha256";
 
@@ -103,13 +105,13 @@ const go = async () => {
       sigName,
       signingScheme,
     });
-
     setResponse({
       ok: true,
       signature,
       sigName,
       signingScheme,
-      message,
+      cidHash,
+      messageHash,
       timestamp,
       child: childActionRes,
     });

@@ -205,19 +205,17 @@ issuedAt: 2025-01-01T00:00:00.000Z
 
 ## Sign Action
 
-The sign Lit Action validates guardians via the child action, then signs a message containing
-the `userAddress` and a current timestamp.
+The sign Lit Action validates guardians via the child action, then signs a hash derived from
+`cid`, `userAddress`, and a current timestamp.
 
 **Expected jsParams:**
 - `userAddress` (string)
 - `guardians` (array of `{ cid, data }`)
 
-**Message format:**
+**Message hash (toSign):**
 ```
-Lit Guardian Signature
-cid: Qm...
-address: 0x...
-timestamp: 1700000000
+cidHash = keccak256(bytes(cid))
+messageHash = keccak256(abi.encodePacked(cidHash, userAddress, timestamp))
 ```
 
 ## Child Action Response Formats
