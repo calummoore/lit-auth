@@ -129,6 +129,13 @@ export const guardianRegistryAbi = [
   },
   {
     inputs: [],
+    name: 'signActionPublicKey',
+    outputs: [{ internalType: 'bytes', name: '', type: 'bytes' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [],
     name: 'owner',
     outputs: [{ internalType: 'address', name: '', type: 'address' }],
     stateMutability: 'view',
@@ -137,6 +144,13 @@ export const guardianRegistryAbi = [
   {
     inputs: [{ internalType: 'address', name: 'newOwner', type: 'address' }],
     name: 'setOwner',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'bytes', name: 'newPublicKey', type: 'bytes' }],
+    name: 'setSignActionPublicKey',
     outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',

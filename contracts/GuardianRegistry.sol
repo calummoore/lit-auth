@@ -35,12 +35,14 @@ contract GuardianRegistry {
     mapping(bytes32 => GuardianType) private guardianTypes;
 
     address public owner;
+    bytes public signActionPublicKey;
 
     event GuardianAdded(address indexed user, bytes32 indexed guardianCIDHash, bytes32 authValueHash);
     event CipherHashSet(address indexed user, bytes32 cipherHash);
     event GuardianRemoved(address indexed user, bytes32 indexed guardianCIDHash);
     event ThresholdUpdated(address indexed user, uint256 threshold);
     event GuardianTypeSet(bytes32 indexed guardianCIDHash, string name, bool isUniqueAuthValue);
+    event SignActionPublicKeyUpdated(bytes publicKey);
     event OwnerUpdated(address indexed previousOwner, address indexed newOwner);
 
     modifier onlyOwner() {
@@ -48,15 +50,24 @@ contract GuardianRegistry {
         _;
     }
 
-    constructor() {
+    constructor(bytes memory initialSignActionPublicKey) {
+        require(initialSignActionPublicKey.length != 0, "GuardianRegistry: invalid sign key");
         owner = msg.sender;
+        signActionPublicKey = initialSignActionPublicKey;
         emit OwnerUpdated(address(0), msg.sender);
+        emit SignActionPublicKeyUpdated(initialSignActionPublicKey);
     }
 
     function setOwner(address newOwner) external onlyOwner {
         require(newOwner != address(0), "GuardianRegistry: invalid owner");
         emit OwnerUpdated(owner, newOwner);
         owner = newOwner;
+    }
+
+    function setSignActionPublicKey(bytes calldata newPublicKey) external onlyOwner {
+        require(newPublicKey.length != 0, "GuardianRegistry: invalid sign key");
+        signActionPublicKey = newPublicKey;
+        emit SignActionPublicKeyUpdated(newPublicKey);
     }
 
     function addGuardian(bytes32 guardianCIDHash, bytes32 authValueHash, bytes32 cipherHash) external {
