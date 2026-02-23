@@ -370,7 +370,9 @@ contract GuardianRegistry {
         delete config.guardianEntries[guardianCIDHash];
         if (authValueHash != bytes32(0)) {
             bytes32 authHash = _authHash(guardianCIDHash, authValueHash);
-            delete authToAddress[authHash];
+            if (authToAddress[authHash] == user) {
+                delete authToAddress[authHash];
+            }
         }
 
         _updateThreshold(config, user);
