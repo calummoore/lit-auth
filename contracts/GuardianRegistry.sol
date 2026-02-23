@@ -43,6 +43,7 @@ contract GuardianRegistry {
     event ThresholdUpdated(address indexed user, uint256 threshold);
     event GuardianTypeSet(bytes32 indexed guardianCIDHash, string name, bool isUniqueAuthValue);
     event SignActionPublicKeyUpdated(bytes publicKey);
+    event AuthOwnerUpdated(bytes32 indexed authHash, address indexed previousOwner, address indexed newOwner);
     event OwnerUpdated(address indexed previousOwner, address indexed newOwner);
 
     modifier onlyOwner() {
@@ -322,11 +323,10 @@ contract GuardianRegistry {
         if (gType.isUniqueAuthValue && signActionSignature.length != 0) {
             _requireValidSignActionSignature(user, guardianCIDHash, signedAt, signActionSignature);
             bytes32 authHash = _authHash(guardianCIDHash, authValueHash);
-            require(
-                authToAddress[authHash] == address(0),
-                "GuardianRegistry: auth already used"
-            );
+            address previousOwner = authToAddress[authHash];
+
             authToAddress[authHash] = user;
+            emit AuthOwnerUpdated(authHash, previousOwner, user);
         }
 
         _updateThreshold(config, user);
@@ -354,6 +354,7 @@ contract GuardianRegistry {
             bytes32 authHash = _authHash(guardianCIDHash, authValueHash);
             if (authToAddress[authHash] == user) {
                 delete authToAddress[authHash];
+                emit AuthOwnerUpdated(authHash, user, address(0));
             }
         }
 
