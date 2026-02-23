@@ -1542,10 +1542,10 @@
     zod "3.24.3"
     zod-validation-error "3.4.0"
 
-"@lit-protocol/auth@^8.2.2":
-  version "8.2.2"
-  resolved "https://registry.npmjs.org/@lit-protocol/auth/-/auth-8.2.2.tgz"
-  integrity sha512-wdZz1cCNbC0oUPwrBaMG0c1IzYdoBcHW+Ni8A8Ce8t7f/Cb2xgv/5C/WtCAt4UnyB6MsETeNA6Ef5PrWwB0LcQ==
+"@lit-protocol/auth@^8.2.3":
+  version "8.2.3"
+  resolved "https://registry.yarnpkg.com/@lit-protocol/auth/-/auth-8.2.3.tgz#b627ec98a779c654151f9582fd19e728c26d50d2"
+  integrity sha512-T7RaUhw0VbKyHivcUhTsaAGpPJSjWe0tSsu3ZluRNIPcerpNzX/jdVp4lVoozEKx491Ah2+lwAtWjYW6MiTXYQ==
   dependencies:
     "@ethersproject/contracts" "5.7.0"
     "@ethersproject/providers" "5.7.0"
@@ -1554,15 +1554,15 @@
     "@lit-protocol/access-control-conditions" "8.0.2"
     "@lit-protocol/access-control-conditions-schemas" "8.0.2"
     "@lit-protocol/auth-helpers" "8.2.0"
-    "@lit-protocol/constants" "9.0.0"
-    "@lit-protocol/contracts" "0.9.0"
+    "@lit-protocol/constants" "9.0.1"
+    "@lit-protocol/contracts" "0.9.1"
     "@lit-protocol/crypto" "8.1.0"
-    "@lit-protocol/lit-client" "8.3.0"
+    "@lit-protocol/lit-client" "8.3.1"
     "@lit-protocol/logger" "8.0.2"
     "@lit-protocol/nacl" "7.1.1"
-    "@lit-protocol/networks" "8.4.0"
-    "@lit-protocol/schemas" "8.0.2"
-    "@lit-protocol/types" "8.0.2"
+    "@lit-protocol/networks" "8.4.1"
+    "@lit-protocol/schemas" "8.0.3"
+    "@lit-protocol/types" "8.0.3"
     "@lit-protocol/uint8arrays" "7.1.1"
     "@lit-protocol/wasm" "8.1.0"
     "@noble/curves" "1.8.1"
@@ -1637,6 +1637,21 @@
     viem "2.38.3"
     zod "3.24.3"
 
+"@lit-protocol/constants@9.0.1":
+  version "9.0.1"
+  resolved "https://registry.yarnpkg.com/@lit-protocol/constants/-/constants-9.0.1.tgz#9bfde2627b8e87d3af0375bce6428cd161b010ea"
+  integrity sha512-gaCMUPvQw9a/Eb6kpTJOMpEYXU5jyca88yB35CFuJ+hUkcfO/QkzKVAMwP+tpgLV8NIvYhpRyxIhKdfLWXbmYw==
+  dependencies:
+    "@lit-protocol/contracts" "0.9.1"
+    "@openagenda/verror" "3.1.4"
+    "@t3-oss/env-core" "0.13.8"
+    "@typechain/ethers-v6" "0.5.1"
+    ethers "5.7.2"
+    tslib "2.8.1"
+    typechain "8.3.2"
+    viem "2.38.3"
+    zod "3.24.3"
+
 "@lit-protocol/contracts@0.5.3":
   version "0.5.3"
   resolved "https://registry.npmjs.org/@lit-protocol/contracts/-/contracts-0.5.3.tgz"
@@ -1646,6 +1661,11 @@
   version "0.9.0"
   resolved "https://registry.npmjs.org/@lit-protocol/contracts/-/contracts-0.9.0.tgz"
   integrity sha512-roswC9kJaMvKWqRrw9/ROKWpG3S+vPtlWPqVDS6JOjcPmaEEitMtfsAmCM4i3LykGKkbrW4MCvIatglByRu/Xw==
+
+"@lit-protocol/contracts@0.9.1":
+  version "0.9.1"
+  resolved "https://registry.yarnpkg.com/@lit-protocol/contracts/-/contracts-0.9.1.tgz#5a182eae3a2a45b18e3b8ae84fcc22a0a36c51d9"
+  integrity sha512-nbc46P++OBouzIxTT6O30byZmOvfi7ORpT/vZCdW7a39+tMDd2dWWaKfcFRMP/4oqGPppGnvFHLVKNuaPtriwA==
 
 "@lit-protocol/contracts@^0.0.74":
   version "0.0.74"
@@ -1681,10 +1701,10 @@
     zod "3.24.3"
     zod-validation-error "3.4.0"
 
-"@lit-protocol/lit-client@8.3.0", "@lit-protocol/lit-client@^8.3.0":
-  version "8.3.0"
-  resolved "https://registry.npmjs.org/@lit-protocol/lit-client/-/lit-client-8.3.0.tgz"
-  integrity sha512-OBeVLvzwyMOtckNg9s7/Hl9DC7Q6NkAxoqeFubhY5nrRmU42L3/fK9ER30Ec9iXu1Oua5YeTqZY/sM5Y65MwFQ==
+"@lit-protocol/lit-client@8.3.1", "@lit-protocol/lit-client@^8.3.1":
+  version "8.3.1"
+  resolved "https://registry.yarnpkg.com/@lit-protocol/lit-client/-/lit-client-8.3.1.tgz#4f907bfbc9579ed86edd7d5a617f30aab56f09cc"
+  integrity sha512-3OyeB/j4iXhI47QCFtos8zyNCQWqpuEfv170PMs/chq+v1m+LT+ackm6MGv1XrAipGqAxcgCoDOLXkR9n0N6Ew==
   dependencies:
     "@ethersproject/contracts" "5.7.0"
     "@ethersproject/providers" "5.7.0"
@@ -1693,14 +1713,14 @@
     "@lit-protocol/access-control-conditions" "8.0.2"
     "@lit-protocol/access-control-conditions-schemas" "8.0.2"
     "@lit-protocol/auth-helpers" "8.2.0"
-    "@lit-protocol/constants" "9.0.0"
-    "@lit-protocol/contracts" "0.9.0"
+    "@lit-protocol/constants" "9.0.1"
+    "@lit-protocol/contracts" "0.9.1"
     "@lit-protocol/crypto" "8.1.0"
     "@lit-protocol/logger" "8.0.2"
     "@lit-protocol/nacl" "7.1.1"
-    "@lit-protocol/networks" "8.4.0"
-    "@lit-protocol/schemas" "8.0.2"
-    "@lit-protocol/types" "8.0.2"
+    "@lit-protocol/networks" "8.4.1"
+    "@lit-protocol/schemas" "8.0.3"
+    "@lit-protocol/types" "8.0.3"
     "@lit-protocol/uint8arrays" "7.1.1"
     "@lit-protocol/wasm" "8.1.0"
     "@noble/curves" "1.8.1"
@@ -1739,10 +1759,10 @@
   dependencies:
     tslib "1.14.1"
 
-"@lit-protocol/networks@8.4.0", "@lit-protocol/networks@^8.4.0":
-  version "8.4.0"
-  resolved "https://registry.npmjs.org/@lit-protocol/networks/-/networks-8.4.0.tgz"
-  integrity sha512-mFKhGkXNBzB77PeWPMfXLc/QL7LVDI3XzfGh0lkhwmTkIgRgez5EqF2QQKLY7GWnzg3dcLxiD52eC35xNmOPNA==
+"@lit-protocol/networks@8.4.1", "@lit-protocol/networks@^8.4.1":
+  version "8.4.1"
+  resolved "https://registry.yarnpkg.com/@lit-protocol/networks/-/networks-8.4.1.tgz#b26b6c91f85758d8d485fe517cc94edbd3536e2b"
+  integrity sha512-36uuhCtAghXQAR/1oqlx/QK0nuYuMPMvpeQ4Yx9aoI3V7c3HAmtP1F+93Th7Y5twcI8nVIoB56XntKwXHNrv7g==
   dependencies:
     "@ethersproject/contracts" "5.7.0"
     "@ethersproject/providers" "5.7.0"
@@ -1751,13 +1771,13 @@
     "@lit-protocol/access-control-conditions" "8.0.2"
     "@lit-protocol/access-control-conditions-schemas" "8.0.2"
     "@lit-protocol/auth-helpers" "8.2.0"
-    "@lit-protocol/constants" "9.0.0"
-    "@lit-protocol/contracts" "0.9.0"
+    "@lit-protocol/constants" "9.0.1"
+    "@lit-protocol/contracts" "0.9.1"
     "@lit-protocol/crypto" "8.1.0"
     "@lit-protocol/logger" "8.0.2"
     "@lit-protocol/nacl" "7.1.1"
-    "@lit-protocol/schemas" "8.0.2"
-    "@lit-protocol/types" "8.0.2"
+    "@lit-protocol/schemas" "8.0.3"
+    "@lit-protocol/types" "8.0.3"
     "@lit-protocol/uint8arrays" "7.1.1"
     "@lit-protocol/wasm" "8.1.0"
     "@noble/curves" "1.8.1"
@@ -1800,6 +1820,25 @@
     zod "3.24.3"
     zod-validation-error "3.4.0"
 
+"@lit-protocol/schemas@8.0.3":
+  version "8.0.3"
+  resolved "https://registry.yarnpkg.com/@lit-protocol/schemas/-/schemas-8.0.3.tgz#55146aecef011192887ec2320251e1fc0beef1f7"
+  integrity sha512-0ZB1JXaiWRNoTL+Dci5weiT3MEq4SFcq1g5tLIx7cWTjLY8KHypfVnd5hFs/KX7yUQl9DS0BLRlSUUGzS9l0eQ==
+  dependencies:
+    "@lit-protocol/access-control-conditions-schemas" "8.0.2"
+    "@lit-protocol/constants" "9.0.1"
+    "@lit-protocol/contracts" "0.9.1"
+    "@openagenda/verror" "3.1.4"
+    "@t3-oss/env-core" "0.13.8"
+    "@typechain/ethers-v6" "0.5.1"
+    ethers "5.7.2"
+    siwe "2.3.2"
+    tslib "2.8.1"
+    typechain "8.3.2"
+    viem "2.38.3"
+    zod "3.24.3"
+    zod-validation-error "3.4.0"
+
 "@lit-protocol/types@7.1.1":
   version "7.1.1"
   resolved "https://registry.npmjs.org/@lit-protocol/types/-/types-7.1.1.tgz"
@@ -1829,6 +1868,26 @@
     tslib "^2.8.1"
     typechain "8.3.2"
     viem "2.29.4"
+    zod "3.24.3"
+    zod-validation-error "3.4.0"
+
+"@lit-protocol/types@8.0.3":
+  version "8.0.3"
+  resolved "https://registry.yarnpkg.com/@lit-protocol/types/-/types-8.0.3.tgz#8856038980d93cb172f43e2b75297a973bedf0ff"
+  integrity sha512-6Y2RZrJ6n/s3FmhbtK2ccYrfGuapRajEklsVxj21sqHzOx0Q2/rIP4QiEw/k85YjTWLCCWAaiuR23ntdbtXDhg==
+  dependencies:
+    "@lit-protocol/access-control-conditions-schemas" "8.0.2"
+    "@lit-protocol/constants" "9.0.1"
+    "@lit-protocol/contracts" "0.9.1"
+    "@lit-protocol/schemas" "8.0.3"
+    "@openagenda/verror" "3.1.4"
+    "@t3-oss/env-core" "0.13.8"
+    "@typechain/ethers-v6" "0.5.1"
+    ethers "5.7.2"
+    siwe "2.3.2"
+    tslib "2.8.1"
+    typechain "8.3.2"
+    viem "2.38.3"
     zod "3.24.3"
     zod-validation-error "3.4.0"
 
