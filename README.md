@@ -17,6 +17,7 @@ npm install
 
 ## Environment
 Copy `.env.example` to `.env` and fill:
+
 - `PRIVATE_KEY` – deployer wallet for Polygon
 - `POLYGON_RPC_URL` – Polygon mainnet RPC (e.g., Alchemy/Infura/public)
 - `POLYGONSCAN_API_KEY` – optional, for verification
@@ -27,11 +28,54 @@ Copy `.env.example` to `.env` and fill:
 - `VITE_PARENT_ACTION_CID` – parent Lit Action CID
 - `VITE_POLYGON_RPC_URL` – Polygon RPC for client writes and LitAction registry reads
 
-## Contracts (Polygon)
-- Source: `contracts/GuardianRegistry.sol`
-- Deploy script: `scripts/deploy.ts`
+## Scripts
 
-Compile and deploy:
+General:
+- `npm run dev` – start the Vite dev server.
+- `npm run build` – typecheck + build the app.
+- `npm run lint` – run ESLint.
+- `npm run preview` – preview the production build.
+- `npm run hardhat` – Hardhat CLI passthrough.
+- `npm run compile:contracts` – compile Solidity contracts (viaIR enabled in Hardhat config).
+
+Deploy:
+- `npm run deploy:guardian-registry` – deploy GuardianRegistry (uses `SIGN_ACTION_PUBLIC_KEY` or `litActions/public_keys.json`).
+- `npm run deploy:lit-action-registry` – deploy LitActionRegistry.
+
+Lit actions + keys:
+- `npm run pinata:upload` – upload a Lit Action to Pinata.
+- `npm run pinata:upload-all` – upload all Lit Actions (writes `.env.local` + `litActions/cids.json`) and regenerates `litActions/public_keys.json`.
+- `npm run lit:action-pks` – derive Lit Action public keys from `litActions/cids.json` and write `litActions/public_keys.json`.
+
+
+## Update contracts
+
+### LitActionRegistry: update child CID
+Set child IPFS CID on LitActionRegistry (uses env or `litActions/cids.json`, strips `ipfs://`).
+
+```bash
+npm run update:child-cid -- --network polygon
+```
+
+### GuardianRegistry: update sign action key
+Set `signActionPublicKey` on GuardianRegistry using `SIGN_ACTION_PUBLIC_KEY` or `litActions/public_keys.json`.
+
+```bash
+npm run update:sign-action-key -- --network polygon
+```
+
+### GuardianRegistry: update guardian config (by CID)
+Set `setGuardianType` (uses env vars).
+
+```bash
+GUARDIAN_CID=Qm... \
+GUARDIAN_TYPE_NAME=wallet \
+GUARDIAN_TYPE_UNIQUE=true \
+npm run update:guardian-type -- --network polygon
+```
+
+## Contracts
+
 ```bash
 npm run compile:contracts
 npm run deploy:guardian-registry
@@ -39,10 +83,7 @@ npm run deploy:guardian-registry
 Copy the printed contract address into `VITE_GUARDIAN_REGISTRY_ADDRESS`.
 
 ## Lit Action Registry (Polygon)
-- Source: `contracts/LitActionRegistry.sol`
-- Deploy script: `scripts/deploy-lit-action-registry.ts`
 
-Compile and deploy:
 ```bash
 npm run compile:contracts
 npm run deploy:lit-action-registry

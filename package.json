@@ -16,7 +16,8 @@
     "pinata:upload-all": "node scripts/pinata-upload-all.cjs && yarn lit:action-pks",
     "lit:action-pks": "node scripts/generate-lit-action-pks.js",
     "update:sign-action-key": "hardhat run scripts/update-sign-action-public-key.ts",
-    "update:child-cid": "hardhat run scripts/update-child-ipfs-cid.ts"
+    "update:child-cid": "hardhat run scripts/update-child-ipfs-cid.ts",
+    "update:guardian-type": "hardhat run scripts/update-guardian-type.ts"
   },
   "dependencies": {
     "@lit-protocol/access-control-conditions": "^8.0.2",
