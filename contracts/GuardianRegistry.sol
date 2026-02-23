@@ -293,7 +293,7 @@ contract GuardianRegistry {
 
     function _updateThreshold(GuardianConfig storage config, address user) internal {
         uint256 n = config.guardianCIDs.length;
-        uint256 nextThreshold = n <= 1 ? n : (n + 1) / 2;
+        uint256 nextThreshold = n <= 1 ? 1 : (n + 1) / 2;
         config.threshold = nextThreshold;
         emit ThresholdUpdated(user, nextThreshold);
     }
