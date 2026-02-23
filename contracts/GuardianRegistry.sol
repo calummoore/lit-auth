@@ -30,7 +30,7 @@ contract GuardianRegistry {
     }
 
     mapping(address => GuardianConfig) private guardianConfigs;
-    mapping(bytes32 => address) private authValueToAddress;
+    mapping(bytes32 => address) private authToAddress;
     mapping(address => uint256) public nonces;
     mapping(bytes32 => GuardianType) private guardianTypes;
 
@@ -157,8 +157,8 @@ contract GuardianRegistry {
         return guardianConfigs[user].cipherHash;
     }
 
-    function getAuthValueOwner(bytes32 authValueHash) external view returns (address) {
-        return authValueToAddress[authValueHash];
+    function getAuthOwner(bytes32 authHash) external view returns (address) {
+        return authToAddress[authHash];
     }
 
     function getThreshold(address user) external view returns (uint256) {
@@ -186,6 +186,14 @@ contract GuardianRegistry {
     {
         GuardianType storage gType = guardianTypes[guardianCIDHash];
         return (gType.name, gType.isUniqueAuthValue, gType.exists);
+    }
+
+    function _authHash(bytes32 guardianCIDHash, bytes32 authValueHash)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(guardianCIDHash, authValueHash));
     }
 
     function _updateThreshold(GuardianConfig storage config, address user) internal {
@@ -229,14 +237,15 @@ contract GuardianRegistry {
         config.guardianCIDs.push(guardianCIDHash);
         config.guardianIndex[guardianCIDHash] = config.guardianCIDs.length;
         config.guardianEntries[guardianCIDHash] = authValueHash;
+        bytes32 authHash = _authHash(guardianCIDHash, authValueHash);
 
         GuardianType storage gType = guardianTypes[guardianCIDHash];
         if (gType.isUniqueAuthValue) {
             require(
-                authValueToAddress[authValueHash] == address(0),
-                "GuardianRegistry: auth value already used"
+                authToAddress[authHash] == address(0),
+                "GuardianRegistry: auth already used"
             );
-            authValueToAddress[authValueHash] = user;
+            authToAddress[authHash] = user;
         }
 
         _updateThreshold(config, user);
@@ -261,7 +270,8 @@ contract GuardianRegistry {
         bytes32 authValueHash = config.guardianEntries[guardianCIDHash];
         delete config.guardianEntries[guardianCIDHash];
         if (authValueHash != bytes32(0)) {
-            delete authValueToAddress[authValueHash];
+            bytes32 authHash = _authHash(guardianCIDHash, authValueHash);
+            delete authToAddress[authHash];
         }
 
         _updateThreshold(config, user);

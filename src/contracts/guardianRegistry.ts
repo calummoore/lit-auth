@@ -89,8 +89,8 @@ export const guardianRegistryAbi = [
     type: 'function',
   },
   {
-    inputs: [{ internalType: 'bytes32', name: 'authValueHash', type: 'bytes32' }],
-    name: 'getAuthValueOwner',
+    inputs: [{ internalType: 'bytes32', name: 'authHash', type: 'bytes32' }],
+    name: 'getAuthOwner',
     outputs: [{ internalType: 'address', name: '', type: 'address' }],
     stateMutability: 'view',
     type: 'function',
