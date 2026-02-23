@@ -10,7 +10,13 @@ const POLYGON_GAS_PRICE_WEI = POLYGON_GAS_PRICE_GWEI
 
 /** @type import('hardhat/config').HardhatUserConfig */
 const config = {
-  solidity: '0.8.24',
+  solidity: {
+    version: '0.8.24',
+    settings: {
+      optimizer: { enabled: true, runs: 200 },
+      viaIR: true,
+    },
+  },
   networks: {
     polygon: {
       url: POLYGON_RPC_URL || 'https://polygon-rpc.com',

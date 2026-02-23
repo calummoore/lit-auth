@@ -10,7 +10,7 @@ const throwErr = (code, message, data) => {
 };
 
 // Update this address after each GuardianRegistry deployment.
-const GUARDIAN_REGISTRY_ADDRESS = "0x5aFf3Db9D55B07c6548e7253C2A8f88749479F33";
+const GUARDIAN_REGISTRY_ADDRESS = "0xC6D0C92641281a5e78f8822cFACC01B3e21F463F";
 
 const optionalParam = (key) => {
   let value;

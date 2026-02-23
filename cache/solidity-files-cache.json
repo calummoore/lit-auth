@@ -2,17 +2,18 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/Users/calummoore/projects/polybase/dev/lit-auth-2/contracts/GuardianRegistry.sol": {
-      "lastModificationDate": 1769433999794,
-      "contentHash": "64dcc439c1b802a164819a58791fe75e",
+      "lastModificationDate": 1771871326587,
+      "contentHash": "d561234212d978d73a1ee9378102e646",
       "sourceName": "contracts/GuardianRegistry.sol",
       "solcConfig": {
         "version": "0.8.24",
         "settings": {
-          "evmVersion": "paris",
           "optimizer": {
-            "enabled": false,
+            "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
+          "evmVersion": "paris",
           "outputSelection": {
             "*": {
               "*": [
@@ -44,11 +45,12 @@
       "solcConfig": {
         "version": "0.8.24",
         "settings": {
-          "evmVersion": "paris",
           "optimizer": {
-            "enabled": false,
+            "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
+          "evmVersion": "paris",
           "outputSelection": {
             "*": {
               "*": [
