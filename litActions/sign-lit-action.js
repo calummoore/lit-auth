@@ -44,6 +44,7 @@ const requireParam = (key) => {
 const go = async () => {
   try {
     const userAddress = requireParam("userAddress");
+    const userAddressNormalized = userAddress.toLowerCase();
     const guardians = requireParam("guardians");
     if (!Array.isArray(guardians)) {
       throwErr("validation-error", "guardians must be an array");
@@ -90,7 +91,7 @@ const go = async () => {
     }
 
     const timestamp = Math.floor(Date.now() / 1000);
-    const message = `Lit Guardian Signature\ncid: ${cid}\naddress: ${userAddress}\ntimestamp: ${timestamp}`;
+    const message = `Lit Guardian Signature\ncid: ${cid}\naddress: ${userAddressNormalized}\ntimestamp: ${timestamp}`;
     const toSign = ethers.utils.arrayify(
       ethers.utils.keccak256(ethers.utils.toUtf8Bytes(message))
     );

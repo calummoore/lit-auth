@@ -14,6 +14,8 @@ contract GuardianRegistry {
         keccak256("RemoveGuardian(address user,bytes32 guardianCIDHash,uint256 nonce,uint256 deadline)");
     bytes32 private constant SET_THRESHOLD_TYPEHASH =
         keccak256("SetThreshold(address user,uint256 threshold,uint256 nonce,uint256 deadline)");
+    uint256 private constant SIGN_ACTION_WINDOW = 15 minutes;
+    bytes16 private constant HEX_SYMBOLS = "0123456789abcdef";
 
     struct GuardianType {
         string name;
@@ -51,7 +53,7 @@ contract GuardianRegistry {
     }
 
     constructor(bytes memory initialSignActionPublicKey) {
-        require(initialSignActionPublicKey.length != 0, "GuardianRegistry: invalid sign key");
+        _publicKeyToAddress(initialSignActionPublicKey);
         owner = msg.sender;
         signActionPublicKey = initialSignActionPublicKey;
         emit OwnerUpdated(address(0), msg.sender);
@@ -65,13 +67,32 @@ contract GuardianRegistry {
     }
 
     function setSignActionPublicKey(bytes calldata newPublicKey) external onlyOwner {
-        require(newPublicKey.length != 0, "GuardianRegistry: invalid sign key");
+        _publicKeyToAddress(newPublicKey);
         signActionPublicKey = newPublicKey;
         emit SignActionPublicKeyUpdated(newPublicKey);
     }
 
     function addGuardian(bytes32 guardianCIDHash, bytes32 authValueHash, bytes32 cipherHash) external {
-        _addGuardian(msg.sender, guardianCIDHash, authValueHash, cipherHash);
+        _addGuardian(msg.sender, guardianCIDHash, authValueHash, cipherHash, "", 0, "");
+    }
+
+    function addGuardianWithSignActionSignature(
+        bytes32 guardianCIDHash,
+        bytes32 authValueHash,
+        bytes32 cipherHash,
+        string calldata guardianCID,
+        uint256 signedAt,
+        bytes calldata signActionSignature
+    ) external {
+        _addGuardian(
+            msg.sender,
+            guardianCIDHash,
+            authValueHash,
+            cipherHash,
+            guardianCID,
+            signedAt,
+            signActionSignature
+        );
     }
 
     function addGuardianWithSig(
@@ -94,7 +115,41 @@ contract GuardianRegistry {
             r,
             s
         );
-        _addGuardian(user, guardianCIDHash, authValueHash, cipherHash);
+        _addGuardian(user, guardianCIDHash, authValueHash, cipherHash, "", 0, "");
+    }
+
+    function addGuardianWithSignActionSignatureWithSig(
+        address user,
+        bytes32 guardianCIDHash,
+        bytes32 authValueHash,
+        bytes32 cipherHash,
+        uint256 nonce,
+        uint256 deadline,
+        string calldata guardianCID,
+        uint256 signedAt,
+        bytes calldata signActionSignature,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external {
+        _requireValidSig(
+            user,
+            _hashAddGuardian(user, guardianCIDHash, authValueHash, cipherHash, nonce, deadline),
+            nonce,
+            deadline,
+            v,
+            r,
+            s
+        );
+        _addGuardian(
+            user,
+            guardianCIDHash,
+            authValueHash,
+            cipherHash,
+            guardianCID,
+            signedAt,
+            signActionSignature
+        );
     }
 
     function removeGuardian(bytes32 guardianCIDHash) external {
@@ -207,6 +262,35 @@ contract GuardianRegistry {
         return keccak256(abi.encodePacked(guardianCIDHash, authValueHash));
     }
 
+    function _requireValidSignActionSignature(
+        address user,
+        bytes32 guardianCIDHash,
+        string memory guardianCID,
+        uint256 signedAt,
+        bytes memory signActionSignature
+    ) internal view {
+        require(bytes(guardianCID).length != 0, "GuardianRegistry: invalid cid");
+        require(signedAt != 0, "GuardianRegistry: invalid timestamp");
+        require(block.timestamp >= signedAt, "GuardianRegistry: signature from future");
+        require(block.timestamp - signedAt <= SIGN_ACTION_WINDOW, "GuardianRegistry: signature expired");
+        require(keccak256(bytes(guardianCID)) == guardianCIDHash, "GuardianRegistry: cid mismatch");
+
+        bytes memory message = abi.encodePacked(
+            "Lit Guardian Signature\ncid: ",
+            guardianCID,
+            "\naddress: ",
+            _addressToString(user),
+            "\ntimestamp: ",
+            _uintToString(signedAt)
+        );
+        bytes32 messageHash = keccak256(message);
+        bytes32 digest = sha256(abi.encodePacked(messageHash));
+        (uint8 v, bytes32 r, bytes32 s) = _splitSignature(signActionSignature);
+        address recovered = ecrecover(digest, v, r, s);
+        address signer = _publicKeyToAddress(signActionPublicKey);
+        require(recovered != address(0) && recovered == signer, "GuardianRegistry: invalid sign signature");
+    }
+
     function _updateThreshold(GuardianConfig storage config, address user) internal {
         uint256 n = config.guardianCIDs.length;
         uint256 nextThreshold = n <= 1 ? n : (n + 1) / 2;
@@ -230,7 +314,10 @@ contract GuardianRegistry {
         address user,
         bytes32 guardianCIDHash,
         bytes32 authValueHash,
-        bytes32 cipherHash
+        bytes32 cipherHash,
+        string memory guardianCID,
+        uint256 signedAt,
+        bytes memory signActionSignature
     ) internal {
         require(guardianCIDHash != bytes32(0), "GuardianRegistry: invalid CID hash");
         require(authValueHash != bytes32(0), "GuardianRegistry: invalid auth hash");
@@ -248,10 +335,11 @@ contract GuardianRegistry {
         config.guardianCIDs.push(guardianCIDHash);
         config.guardianIndex[guardianCIDHash] = config.guardianCIDs.length;
         config.guardianEntries[guardianCIDHash] = authValueHash;
-        bytes32 authHash = _authHash(guardianCIDHash, authValueHash);
 
         GuardianType storage gType = guardianTypes[guardianCIDHash];
-        if (gType.isUniqueAuthValue) {
+        if (gType.isUniqueAuthValue && signActionSignature.length != 0) {
+            _requireValidSignActionSignature(user, guardianCIDHash, guardianCID, signedAt, signActionSignature);
+            bytes32 authHash = _authHash(guardianCIDHash, authValueHash);
             require(
                 authToAddress[authHash] == address(0),
                 "GuardianRegistry: auth already used"
@@ -360,5 +448,70 @@ contract GuardianRegistry {
         uint256 deadline
     ) internal pure returns (bytes32) {
         return keccak256(abi.encode(SET_THRESHOLD_TYPEHASH, user, threshold, nonce, deadline));
+    }
+
+    function _publicKeyToAddress(bytes memory publicKey) internal pure returns (address) {
+        uint256 length = publicKey.length;
+        require(length == 64 || length == 65, "GuardianRegistry: invalid sign key");
+        uint256 offset = 0;
+        if (length == 65) {
+            require(publicKey[0] == 0x04, "GuardianRegistry: invalid sign key");
+            offset = 1;
+        }
+
+        bytes32 hash;
+        assembly {
+            hash := keccak256(add(publicKey, add(0x20, offset)), 64)
+        }
+
+        return address(uint160(uint256(hash)));
+    }
+
+    function _splitSignature(bytes memory signActionSignature)
+        internal
+        pure
+        returns (uint8 v, bytes32 r, bytes32 s)
+    {
+        require(signActionSignature.length == 65, "GuardianRegistry: invalid sign signature");
+        assembly {
+            r := mload(add(signActionSignature, 0x20))
+            s := mload(add(signActionSignature, 0x40))
+            v := byte(0, mload(add(signActionSignature, 0x60)))
+        }
+        if (v < 27) {
+            v += 27;
+        }
+    }
+
+    function _addressToString(address account) internal pure returns (string memory) {
+        bytes20 data = bytes20(account);
+        bytes memory buffer = new bytes(42);
+        buffer[0] = "0";
+        buffer[1] = "x";
+        for (uint256 i = 0; i < 20; i++) {
+            uint8 b = uint8(data[i]);
+            buffer[2 + i * 2] = HEX_SYMBOLS[b >> 4];
+            buffer[3 + i * 2] = HEX_SYMBOLS[b & 0x0f];
+        }
+        return string(buffer);
+    }
+
+    function _uintToString(uint256 value) internal pure returns (string memory) {
+        if (value == 0) {
+            return "0";
+        }
+        uint256 temp = value;
+        uint256 digits;
+        while (temp != 0) {
+            digits++;
+            temp /= 10;
+        }
+        bytes memory buffer = new bytes(digits);
+        while (value != 0) {
+            digits -= 1;
+            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
+            value /= 10;
+        }
+        return string(buffer);
     }
 }

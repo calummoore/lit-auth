@@ -215,6 +215,7 @@ the `userAddress` and a current timestamp.
 **Message format:**
 ```
 Lit Guardian Signature
+cid: Qm...
 address: 0x...
 timestamp: 1700000000
 ```
